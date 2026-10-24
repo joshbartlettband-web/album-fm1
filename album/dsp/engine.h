@@ -96,7 +96,7 @@ void eng_arp_note(int note, int on);     /* a mono patch in chord mode: a note i
  * Clock in (MIDI F8, from the render) takes over from the tempo while it comes, as a linked FM-1's does */
 void eng_beat(int on);                   /* main loop */
 void eng_tempo(float bpm);               /* main loop: this patch's tempo */
-void eng_beat_level(float v);            /* 0..1 */
+void eng_beat_level(float v);            /* 0..2: 0.7 the kit as written */
 void eng_clock_in(int what);             /* the render's MIDI: 0xF8 a tick, 0xFA start, 0xFC stop */
 int eng_beat_on(void);
 uint32_t eng_ticks(void);                /* clock ticks (24 a beat) since the beat started: the main loop sends them */

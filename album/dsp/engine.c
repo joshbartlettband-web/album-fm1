@@ -747,7 +747,7 @@ static float pulse;
 
 void eng_beat(int on) { beat_req = on ? 1 : 2; }
 void eng_tempo(float bpm) { tempo_bpm = fm_clampf(bpm, 40.0f, 240.0f); }
-void eng_beat_level(float v) { beat_lv = fm_clampf(v, 0.0f, 1.0f); }
+void eng_beat_level(float v) { beat_lv = fm_clampf(v, 0.0f, 2.0f); }
 int eng_beat_on(void) { return C.on; }
 uint32_t eng_ticks(void) { return C.ticks; }
 uint32_t eng_step(void) { return C.step; }

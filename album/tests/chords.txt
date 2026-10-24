@@ -112,3 +112,13 @@ wait 800
 expect chords 1
 expect key 7
 expect tempo 90
+# the beat's level apart from the rest (35, saved above): SEQ held and SELECT, five a click, sent as CC 21; CC 21 in sets it
+press SEQ
+spin SELECT 2
+release SEQ
+wait 60
+expect beat_level 45
+out
+midi B0 15 7F
+wait 60
+expect beat_level 100

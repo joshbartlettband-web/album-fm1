@@ -162,7 +162,8 @@ light a little.
 | TOWER | 104 | Scattered late-90s dance drums, kept soft (after In Another Way) |
 
 Hold SEQ and turn ALGORITHM to change the tempo; each patch keeps its own, and HOME puts it back. Hold SEQ and turn
-SELECT to set the beat's level. (Turning a knob while SEQ is held leaves the beat running when you let go.) Changing patch keeps the beat's place: the new patch's beat and tempo take over on the next
+SELECT to set the beat's level, apart from the rest of the sound: five steps a click, a bar at the bottom like the
+knobs'. It starts at 50; 100 is twice as loud, 0 silent. (Turning a knob while SEQ is held leaves the beat running when you let go.) Changing patch keeps the beat's place: the new patch's beat and tempo take over on the next
 sixteenth. In chord mode on BLUESTEM, the arpeggio follows the same clock, with or without the beat.
 
 ## 7. Two FM-1s as one
@@ -197,6 +198,7 @@ In over USB, Bluetooth and the TRS jack; out over USB and Bluetooth. Any channel
 | CC 64 | Hold | PLAY |
 | Program change | The patch (0 is RED DOOR) | PRESET |
 | CC 120, 123 | All sound off | |
+| CC 21 | The beat's level | SEQ held and SELECT |
 | Clock, start, stop | The beat follows another FM-1 or a computer | While this FM-1's beat runs |
 
 Nothing received is sent back out, so two linked FM-1s never echo.
