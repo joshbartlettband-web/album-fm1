@@ -54,7 +54,7 @@ static const patch_t PATCHES[] = {
      .att = 0.12f, .dec = 1.8f, .sus = 0.82f, .rel = 1.4f,
      .arm_cents = 85.0f, .drift_cents = 9.0f, .arm_rate = 1.1f,
      .swell_lo = 0.14f, .swell_hi = 1.35f, .wet_lo = 0.45f, .wet_hi = 1.0f, .diffuse = 0.85f,
-     .tape = 0.45f, .level = 1.0f, .knob = {0.55f, 0.55f, 0.45f, 0.82f, 0.55f},
+     .tape = 0.45f, .level = 1.0f, .knob = {0.55f, 0.55f, 0.45f, 0.82f, 0.65f},
      .chord = CH_OPEN, .beat = &BEAT_RED_DOOR},
     /* Maple: the sun through a red leaf, late. A soft reed organ that sways slowly, the street's warmth on tape. */
     {.name = "MAPLE", .photo = 1, .wave = WAVE_PULSE, .oscs = 2, .detune = 6.0f, .pw = 0.5f, .sub = 0.25f,
@@ -63,7 +63,7 @@ static const patch_t PATCHES[] = {
      .arm_cents = 22.0f, .drift_cents = 6.0f, .arm_rate = 0.45f,
      .trem_l = 0.9f, .trem_r = 1.13f, .trem_depth = 0.22f,
      .swell_lo = 0.2f, .swell_hi = 1.2f, .wet_lo = 0.3f, .wet_hi = 0.9f, .diffuse = 0.7f,
-     .tape = 0.75f, .level = 1.05f, .knob = {0.3f, 0.45f, 0.4f, 0.55f, 0.2f},
+     .tape = 0.75f, .level = 1.05f, .knob = {0.3f, 0.45f, 0.4f, 0.55f, 0.3f},
      .chord = CH_ORGAN, .beat = &BEAT_MAPLE},
     /* Dahlia: pink petals open in full sun. Bright fuzz chords, bent hard, the wash behind them rather than over. */
     {.name = "DAHLIA", .photo = 2, .wave = WAVE_SAW, .oscs = 3, .detune = 24.0f, .sub = 0.1f,
@@ -90,7 +90,7 @@ static const patch_t PATCHES[] = {
      .hp = 160.0f, .att = 0.45f, .dec = 2.4f, .sus = 0.8f, .rel = 2.0f,
      .arm_cents = 35.0f, .drift_cents = 8.0f, .arm_rate = 0.9f,
      .swell_lo = 0.25f, .swell_hi = 1.4f, .wet_lo = 0.5f, .wet_hi = 1.0f, .diffuse = 1.0f,
-     .tape = 0.3f, .level = 1.2f, .knob = {0.35f, 0.6f, 0.5f, 0.75f, 0.25f},
+     .tape = 0.3f, .level = 1.2f, .knob = {0.35f, 0.6f, 0.5f, 0.75f, 0.35f},
      .chord = CH_SPREAD, .beat = &BEAT_CLEMATIS},
     /* Whirl: a room swung past the camera, the window's light pulled into loops. A wide chord bent deep and fast,
      * carried round from one side to the other, almost all reverse reverb. */
@@ -111,7 +111,7 @@ static const patch_t PATCHES[] = {
      .arm_cents = 20.0f, .drift_cents = 5.0f, .arm_rate = 0.6f,
      .trem_l = 4.6f, .trem_depth = 0.45f, .trem_pan = 1,
      .swell_lo = 0.15f, .swell_hi = 1.2f, .wet_lo = 0.25f, .wet_hi = 0.85f, .diffuse = 0.7f,
-     .tape = 0.45f, .level = 1.25f, .knob = {0.25f, 0.5f, 0.35f, 0.5f, 0.1f},
+     .tape = 0.45f, .level = 1.25f, .knob = {0.25f, 0.5f, 0.35f, 0.5f, 0.15f},
      .chord = CH_SEVENTH, .beat = &BEAT_WINDOW},
     /* Pasture: horses grazing under a big sky, a hill, a tree bent low by the wind. Open fifths, slow and wide,
      * a little wind in the reeds; it hardly bends. */
@@ -120,7 +120,7 @@ static const patch_t PATCHES[] = {
      .breath = 0.35f, .att = 0.7f, .dec = 3.0f, .sus = 0.9f, .rel = 2.4f,
      .arm_cents = 18.0f, .drift_cents = 5.0f, .arm_rate = 0.3f,
      .swell_lo = 0.3f, .swell_hi = 1.45f, .wet_lo = 0.35f, .wet_hi = 0.9f, .diffuse = 0.8f,
-     .tape = 0.3f, .level = 1.1f, .knob = {0.3f, 0.6f, 0.5f, 0.55f, 0.3f},
+     .tape = 0.3f, .level = 1.1f, .knob = {0.3f, 0.6f, 0.5f, 0.55f, 0.4f},
      .chord = CH_FIFTHS, .beat = &BEAT_PASTURE},
     /* Bluestem: tall prairie grass in the wind, blue sage, a moth. A thin reed whistle, one note at a time like a
      * blade of grass blown between the thumbs, sliding and wavering, the wind through it and wings fluttering. */
@@ -131,7 +131,7 @@ static const patch_t PATCHES[] = {
      .arm_cents = 45.0f, .drift_cents = 16.0f, .arm_rate = 1.2f,
      .trem_l = 7.5f, .trem_r = 9.2f, .trem_depth = 0.18f,
      .swell_lo = 0.15f, .swell_hi = 1.2f, .wet_lo = 0.3f, .wet_hi = 0.9f, .diffuse = 0.85f,
-     .tape = 0.25f, .level = 1.55f, .knob = {0.45f, 0.5f, 0.55f, 0.5f, 0.15f},
+     .tape = 0.25f, .level = 1.55f, .knob = {0.45f, 0.5f, 0.55f, 0.5f, 0.2f},
      .chord = CH_ARP, .arp_div = 2, .beat = &BEAT_BLUESTEM},
     /* Snowfall: a back yard at night, snow coming down through the porch light onto the grill and the pots. Glass
      * notes, hollow and soft, muffled the way snow muffles everything, each sinking into a long hush. */
@@ -141,7 +141,7 @@ static const patch_t PATCHES[] = {
      .att = 0.02f, .dec = 4.0f, .sus = 0.2f, .rel = 3.0f,
      .arm_cents = 30.0f, .drift_cents = 4.0f, .arm_rate = 0.25f,
      .swell_lo = 0.4f, .swell_hi = 1.45f, .wet_lo = 0.5f, .wet_hi = 1.0f, .diffuse = 1.0f,
-     .tape = 0.15f, .level = 1.15f, .knob = {0.3f, 0.7f, 0.35f, 0.7f, 0.1f},
+     .tape = 0.15f, .level = 1.15f, .knob = {0.3f, 0.7f, 0.35f, 0.7f, 0.2f},
      .chord = CH_ICE, .beat = &BEAT_SNOWFALL},
     /* Tower: a tower block lit gold by the last sun, a street lamp just come on below it. A tall chord, octaves
      * stacked over a low sine, that starts dark and glows open after each note as the light does, warm on tape. */

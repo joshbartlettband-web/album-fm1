@@ -1122,6 +1122,9 @@ int eng_b_sane(void)
 /* the fuzz: every voice into one pedal, as a guitar's chord goes, so the notes of a chord grind against each other.
  * A high-pass first (the lows stay clean, beside it), the gain, a clip that leans one way, then a low-pass that Tone
  * opens: the fizz kept down. Fuzz blends it in and turns it up; the clean sound gives way as it does */
+#ifndef FZ_OUT
+#define FZ_OUT 0.16f                     /* the fuzz's level: about the clean sound's */
+#endif
 static float fz_now, fz_hp_l, fz_hp_r, fz_lp_l, fz_lp_r, fz_lo_l, fz_lo_r;
 
 /* tremolo, wow and saturation: core 0, after the join */
@@ -1150,9 +1153,9 @@ void eng_end(int32_t *lr, uint32_t n, float gain)
     fz_now += ((fuzz_on ? B.knob[K_FUZZ] : 0.0f) - fz_now) * 0.25f;   /* (no clicks as it moves) */
     if (fz_now < 1e-4f)
         fz_now = 0.0f;
-    const float fz = fz_now, fz_drive = 1.5f + 46.0f * fz * fz, fz_mix = fm_minf(1.0f, fz * 2.2f);
-    const float fz_out = 0.7f / fm_sqrtf(fz_drive), fz_hpc = 1.0f - fm_expf(-FM_TWO_PI * 140.0f / ENG_FS);
-    const float fz_lpc = 1.0f - fm_expf(-FM_TWO_PI * 1900.0f * fm_exp2f(1.8f * B.knob[K_TONE]) / ENG_FS);
+    const float fz = fz_now, fz_drive = 4.0f + 140.0f * fz * fm_sqrtf(fz), fz_mix = fm_minf(1.0f, fz * 3.0f);
+    const float fz_out = FZ_OUT, fz_hpc = 1.0f - fm_expf(-FM_TWO_PI * 140.0f / ENG_FS);
+    const float fz_lpc = 1.0f - fm_expf(-FM_TWO_PI * 3000.0f * fm_exp2f(1.5f * B.knob[K_TONE]) / ENG_FS);
     const float fz_loc = 1.0f - fm_expf(-FM_TWO_PI * 140.0f / ENG_FS);
     if (ext) {                           /* following a clock in: what its ticks made due, now */
         while (C.run && C.ext_due) {
@@ -1181,16 +1184,18 @@ void eng_end(int32_t *lr, uint32_t n, float gain)
             fz_lo_r += fz_loc * (r - fz_lo_r);
             hl = (l - fz_hp_l) * fz_drive;
             hr = (r - fz_hp_r) * fz_drive;
-            yl = soft(fm_clampf(hl + 0.22f, -3.0f, 3.0f)) - soft(0.22f);
+            yl = soft(fm_clampf(hl + 0.22f, -3.0f, 3.0f)) - soft(0.22f);   /* two stages, as a Big Muff's */
             yr = soft(fm_clampf(hr + 0.22f, -3.0f, 3.0f)) - soft(0.22f);
+            yl = soft(fm_clampf(yl * 3.0f, -3.0f, 3.0f));
+            yr = soft(fm_clampf(yr * 3.0f, -3.0f, 3.0f));
             fz_lp_l += fz_lpc * (yl - fz_lp_l);
             fz_lp_r += fz_lpc * (yr - fz_lp_r);
             if (fz_lp_l < 1e-9f && fz_lp_l > -1e-9f)
                 fz_lp_l = 0.0f;
             if (fz_lp_r < 1e-9f && fz_lp_r > -1e-9f)
                 fz_lp_r = 0.0f;
-            l = l * (1.0f - fz_mix) + (fz_lp_l * fz_out + fz_lo_l * 0.8f) * fz_mix;
-            r = r * (1.0f - fz_mix) + (fz_lp_r * fz_out + fz_lo_r * 0.8f) * fz_mix;
+            l = l * (1.0f - fz_mix) + (fz_lp_l * fz_out + fz_lo_l * 0.5f) * fz_mix;
+            r = r * (1.0f - fz_mix) + (fz_lp_r * fz_out + fz_lo_r * 0.5f) * fz_mix;
         }
         if (td > 0.0f) {                 /* two amps, two speeds (or one sound carried side to side) */
             float ml = sine01(trem_l_ph), mr = p->trem_pan ? -ml : sine01(trem_r_ph);
