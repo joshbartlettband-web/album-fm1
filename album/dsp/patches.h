@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: MIT
  * Copyright (c) 2026 Hausway */
-/* Album 01, m b v: the patches. The first six come from the fire pit photo (photo 0); each later patch brings its own
+/* Album 01: the patches. The first six come from the fire pit photo (photo 0); each later patch brings its own
  * photo. Every patch shares the four knobs: Glide (how far pitch wanders), Swell (the reverse reverb's length), Tone
  * (dark to bright) and Blur (clear to washed out). Included by engine.c only. */
 #pragma once

@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: MIT
  * Copyright (c) 2026 Hausway */
-/* Album 01, m b v: a few deep sounds and the photo each one came from. The keys play; PRESET picks the patch (and its
+/* Album 01: a few deep sounds and the photo each one came from. The keys play; PRESET picks the patch (and its
  * photo); the four knobs are Glide, Swell, Tone and Blur on every patch, and each moves the photo as it moves the
  * sound. PLAY holds the notes; HOME puts the knobs back where the patch starts; SAVE keeps everything; REC links to
  * another FM-1 (or any Bluetooth MIDI device), held a second it turns Bluetooth off or on.
