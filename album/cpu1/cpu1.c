@@ -38,6 +38,7 @@ static uint32_t c1_seq, c1_faults, c1_jobs, c1_why;
 enum { C1_WHY_NONE, C1_WHY_NOSTART, C1_WHY_STALL, C1_WHY_RESULTS, C1_WHY_CRASH, C1_WHY_BARRED, C1_WHY_OFF };
 
 extern uint8_t album_cpu1_stacks_lo[], album_cpu1_stacks_hi[];
+static void (*volatile c1_job)(void) = eng_voices_b;   /* core 1's job, called through this (see album_cpu1_main) */
 extern void album_cpu1_entry(void);
 
 #define C1_REG(a) (*(volatile uint32_t *)(uintptr_t)(a))
@@ -100,8 +101,17 @@ void __attribute__((section(".c1_text"), noinline, noreturn, used)) album_cpu1_m
             c1_box.misread++;
             continue;
         }
-        last = r;
-        eng_voices_b();
+        {   /* the job is in the flash, too far for a call from RAM: through a pointer, read until it reads right
+             * (a misread pointer called is a crash) */
+            void (*job)(void) = c1_job;
+            if (job != eng_voices_b) {
+                c1_box.misread++;
+                continue;                /* (not taken: the next look reads it again) */
+            }
+            last = r;
+            __asm__("" : "+r"(job));     /* (the compiler must not turn this back into a direct call) */
+            job();
+        }
         c1_store(&c1_box.done, r);
     }
 }
