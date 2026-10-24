@@ -62,7 +62,7 @@ The fire in the photo flickers with the sound's level.
 
 ## 4. The patches
 
-The first six come from the fire pit photo; later patches each bring their own photo.
+The first six come from the fire pit photo; from the seventh on, each patch brings its own photo.
 
 | # | Patch | From the photo | Sound |
 | --- | --- | --- | --- |
@@ -72,6 +72,10 @@ The first six come from the fire pit photo; later patches each bring their own p
 | 4 | SHIVER | The cold night | A bright chord through two tremolos at different speeds, left and right |
 | 5 | BLUR | The moving figures | One note at a time, sliding between notes and never landing cleanly |
 | 6 | FLARE | The violet flare | A high shimmer an octave up that blooms in after each note |
+| 7 | MAPLE | The sun through a red maple leaf | A soft reed organ that sways slowly, warm on tape |
+| 8 | DAHLIA | Pink dahlias in full sun | Bright fuzz chords bent hard, the wash behind them |
+| 9 | RED HALL | One light in a red room at night | A low chord chopped by a fast tremolo, each side at its own speed |
+| 10 | CLEMATIS | A bush of small white flowers | A breathy pad, half tone and half air; each note a cloud |
 
 ## 5. Two FM-1s as one
 
