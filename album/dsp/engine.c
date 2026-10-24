@@ -458,7 +458,7 @@ static void render_voice(voice_t *v, float *o, uint32_t n)
                 v->dgoal[o2] = (rndf(&v->rng) - 0.5f) * 2.0f * B.drift;
             v->drift[o2] += (v->dgoal[o2] - v->drift[o2]) * 0.004f;   /* ~90 ms to get there */
             cents = armc + v->drift[o2] + (oscs > 1u ? SPREAD3[o2] * p->detune : 0.0f);
-            semis = v->pitch + p->octave + cents * 0.01f;
+            semis = v->pitch + p->octave + cents * 0.01f + (o2 == 2u ? p->interval : 0.0f);
             f = 440.0f * fm_exp2f((semis - 69.0f) * (1.0f / 12.0f));
             dt[o2] = fm_minf(f * (1.0f / ENG_FS), 0.45f);
         }
@@ -758,21 +758,30 @@ void eng_end(int32_t *lr, uint32_t n, float gain)
         float l = dry_a[2u * i] + dry_b[2u * i], r = dry_a[2u * i + 1u] + dry_b[2u * i + 1u];
         float ol, or_, d, fr, w0l, w0r, w1l, w1r;
         uint32_t di, a0, a1;
-        if (td > 0.0f) {                 /* two amps, two speeds */
-            float ml = sine01(trem_l_ph), mr = sine01(trem_r_ph);
+        float gl = 1.0f, gr = 1.0f;
+        if (td > 0.0f) {                 /* two amps, two speeds (or one sound carried side to side) */
+            float ml = sine01(trem_l_ph), mr = p->trem_pan ? -ml : sine01(trem_r_ph);
             if (p->trem_square) {        /* a chop: the sine pushed hard into a soft square */
                 ml = soft(ml * 6.0f);
                 mr = soft(mr * 6.0f);
             }
-            l *= 1.0f - td * 0.5f * (1.0f + ml);
-            r *= 1.0f - td * 0.5f * (1.0f + mr);
+            gl = 1.0f - td * 0.5f * (1.0f + ml);
+            gr = 1.0f - td * 0.5f * (1.0f + mr);
             trem_l_ph = wrap01(trem_l_ph + tl);
             trem_r_ph = wrap01(trem_r_ph + tr);
         }
-        dry_last[2u * i] = l;            /* the reverb hears the tremolo too */
+        if (!p->trem_pan) {              /* the tremolo before the reverb, which hears it too */
+            l *= gl;
+            r *= gr;
+        }
+        dry_last[2u * i] = l;
         dry_last[2u * i + 1u] = r;
         ol = l * dry + wet_out[2u * i] * wet * wet_gain;
         or_ = r * dry + wet_out[2u * i + 1u] * wet * wet_gain;
+        if (p->trem_pan) {               /* the pan after it: the whole sound, the room too, carried round */
+            ol *= gl;
+            or_ *= gr;
+        }
         /* tape: a slow wow and a little flutter on a short delay, then saturation */
         wow_buf[2u * wow_w] = ol;
         wow_buf[2u * wow_w + 1u] = or_;

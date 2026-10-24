@@ -1,17 +1,9 @@
 /* SPDX-License-Identifier: MIT
  * Copyright (c) 2026 Hausway */
-/* On the shelf: the six patches that shared the fire pit photo (fire-pit.jpg, beside this file). They are not built.
- * Album gives each patch its own photo and draws the sound from it, and six sounds from one photo broke that rule.
- * See README.md here for bringing one back. */
+/* On the shelf: five patches that shared the fire pit photo with RED DOOR. They are not built: Album gives each
+ * patch its own photo and draws the sound from it, and RED DOOR is the one that photo kept. See README.md here for
+ * bringing one back with a photo of its own. */
 #if 0
-    /* Red Door: the red wash over everything. The main glide chord bed: three detuned saws bent all the time, heard
-     * mostly through the reverse reverb. */
-    {.name = "RED DOOR", .photo = 0, .wave = WAVE_SAW, .oscs = 3, .detune = 16.0f, .sub = 0.12f,
-     .cut_lo = 520.0f, .cut_hi = 6200.0f, .res = 0.12f, .fenv = 0.7f, .fenv_decay = 1.4f, .breath = 0.0f,
-     .att = 0.12f, .dec = 1.8f, .sus = 0.82f, .rel = 1.4f,
-     .arm_cents = 85.0f, .drift_cents = 9.0f, .arm_rate = 1.1f,
-     .swell_lo = 0.14f, .swell_hi = 1.35f, .wet_lo = 0.45f, .wet_hi = 1.0f, .diffuse = 0.85f,
-     .tape = 0.45f, .level = 1.0f, .knob = {0.55f, 0.55f, 0.45f, 0.82f}},
     /* Ember: the fire pit. A warm low drone with a quiet crackle; the filter breathes. */
     {.name = "EMBER", .photo = 0, .wave = WAVE_SAW, .oscs = 2, .detune = 7.0f, .octave = -12.0f, .sub = 0.55f,
      .crackle = 0.6f, .cut_lo = 140.0f, .cut_hi = 1900.0f, .res = 0.28f, .fenv = 0.0f, .fenv_decay = 1.0f,

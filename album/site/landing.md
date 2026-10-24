@@ -4,7 +4,7 @@ Album is a series of firmwares for the M-VAVE FM-1, one per record. Each edition
 photographs they came from. Edition 01 follows one record: chords bent the whole time they ring, heard through a
 reverse reverb.
 
-![Maple playing: red maple leaves over a street at sunset, wavering sideways with the sound](img/screen-playing.png "ALBUM on the FM-1's screen")
+![Red Door playing: the fire pit photo in reds and violet, wavering sideways with the sound](img/screen-playing.png "ALBUM on the FM-1's screen")
 
 Version {{VERSION}}. Installing is at your own risk; the installer can put M-VAVE's own firmware back.
 
