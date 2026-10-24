@@ -147,3 +147,9 @@ vite.config.ts.timestamp-*
 
 # Turbo Repo
 .turbo
+
+# Album
+album/build/
+site/
+out/
+__pycache__/

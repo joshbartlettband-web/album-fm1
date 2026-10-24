@@ -1,0 +1,20 @@
+# Album: a tag v1.2 builds, attests and releases the packages with the FM-1 Firmware Hub's shared workflow
+# (zvenson/fm1-build), so the hub can show "Built from source".
+name: release
+on:
+  push:
+    tags: ['v*']
+jobs:
+  build:
+    uses: zvenson/fm1-build/.github/workflows/build.yml@v1
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    with:
+      build: |
+        git submodule update --init --recursive
+        python3 -m pip install numpy
+        python3 base/tools/build.py album --release "${GITHUB_REF_NAME#v}"
+        python3 base/tools/build.py album --release "${GITHUB_REF_NAME#v}" --no-ble
+      packages: album/build/*.fwsc

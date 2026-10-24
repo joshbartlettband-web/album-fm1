@@ -1,0 +1,19 @@
+# the manual's pictures (album_host screens.txt OUTDIR): docs/img
+wait 900
+shot screen-patch.png
+wait 1200
+key w6 down 96
+key w8 down 96
+key w10 down 96
+wait 1500
+shot screen-playing.png
+turn K4 3
+wait 200
+shot screen-knob.png
+key w6 up
+key w8 up
+key w10 up
+wait 1500
+tap PLAY
+wait 1800
+shot screen-hold.png
