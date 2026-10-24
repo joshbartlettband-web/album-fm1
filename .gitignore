@@ -150,6 +150,6 @@ vite.config.ts.timestamp-*
 
 # Album
 album/build/
-site/
-out/
+/site/
+/out/
 __pycache__/
