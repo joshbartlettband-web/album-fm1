@@ -78,14 +78,13 @@ expect step >4
 expect step <8
 expect_out USB FA 00 00
 shot beat.png
-# ALGORITHM: the tempo; SEQ held and ALGORITHM turned: the level, the beat still going
-turn ALGO 4
-wait 60
-expect tempo 90
+# SEQ held: ALGORITHM the tempo, SELECT the level; the beat still going after
 press SEQ
-turn ALGO -3
+turn ALGO 4
+turn SELECT -3
 release SEQ
 wait 60
+expect tempo 90
 expect beat 1
 # SEQ again: stopped, a clock stop sent
 out

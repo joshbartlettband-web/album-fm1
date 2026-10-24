@@ -2,8 +2,9 @@
  * Copyright (c) 2026 Hausway */
 /* Album 01: a few deep sounds and the photo each one came from. The keys play; PRESET picks the patch (and its
  * photo); the four knobs are Glide, Swell, Tone and Blur on every patch, and each moves the photo as it moves the
- * sound. ARP turns chord mode on (chords.h) and SELECT picks its key (or hold ARP and press a key); SEQ starts the
- * patch's beat and ALGORITHM sets its tempo (with SEQ held, its level). PLAY holds the notes; HOME puts the knobs and
+ * sound. ALGORITHM is a fifth knob, FUZZ, and FX takes the fuzz in and out. ARP turns chord mode on (chords.h) and
+ * SELECT picks its key (or hold ARP and press a key); SEQ starts the patch's beat, and with SEQ held ALGORITHM sets
+ * its tempo and SELECT its level. PLAY holds the notes; HOME puts the knobs and
  * the tempo back where the patch starts; SAVE keeps everything; REC links to another FM-1 (or any Bluetooth MIDI
  * device), held a second it turns Bluetooth off or on.
  *
@@ -23,13 +24,13 @@ static int c1_join(void) { return 1; }
 static int c1_start(void) { return 0; }
 #endif
 
-static const char *const KNOB_NAME[NKNOB] = {"GLIDE", "SWELL", "TONE", "BLUR"};
+static const char *const KNOB_NAME[NKNOB] = {"GLIDE", "SWELL", "TONE", "BLUR", "FUZZ"};
 static inline float sine_wave(float x) { return fm_sinf(x * FM_TWO_PI); }
-#define CC_KNOB0 16u                     /* MIDI CC 16..19: the four knobs (in and out) */
+#define CC_KNOB0 16u                     /* MIDI CC 16..20: the five knobs, K1 to K4 and FUZZ (in and out) */
 #define MAX_PATCH 16u
 
 /* --------------------------------------------------------------- settings --- */
-#define SET_MAGIC 0x414C4235u            /* "ALB5": chord mode and the beats (earlier layouts start fresh) */
+#define SET_MAGIC 0x414C4236u            /* "ALB6": the fuzz (earlier layouts start fresh) */
 typedef struct {
     uint32_t magic;
     uint8_t patch;
@@ -40,7 +41,7 @@ typedef struct {
     uint8_t key;                         /* chord mode's key, 0 (C) .. 11 */
     uint8_t chords;                      /* chord mode on */
     uint8_t beat_level;                  /* 0..100 */
-    uint8_t pad;
+    uint8_t fuzz_off;                    /* FX: the fuzz bypassed */
     int8_t tempo[MAX_PATCH];             /* each patch's tempo, BPM from its beat's own */
 } settings_t;
 static settings_t set;
@@ -59,6 +60,7 @@ static void settings_defaults(void)
     set.key = 0;
     set.chords = 0;
     set.beat_level = 70;
+    set.fuzz_off = 0;
     for (p = 0; p < MAX_PATCH; p++)
         set.tempo[p] = 0;
     for (p = 0; p < MAX_PATCH; p++)
@@ -197,13 +199,14 @@ void app_init(void)
     eng_init();
     if (plat_store_load(OBJ_SETTINGS, &set, sizeof set) != (int)sizeof set || set.magic != SET_MAGIC
         || set.octave < -2 || set.octave > 2 || set.ble_off > 1u || set.one_core > 1u || set.key > 11u
-        || set.chords > 1u || set.beat_level > 100u)
+        || set.chords > 1u || set.beat_level > 100u || set.fuzz_off > 1u)
         settings_defaults();
     if (set.patch >= (uint32_t)eng_patch_count())
         set.patch = 0;
     eng_patch(set.patch);
     knobs_to_engine();
     beat_to_engine();
+    eng_fuzz_on(!set.fuzz_off);
 #ifndef PLAT_HOST
     if (!set.one_core && !(plat_buttons() >> B_OCTDN & 1u))   /* OCT- held at power-on: one core, this time */
         c1_start();
@@ -280,6 +283,7 @@ static void photo_palette(void)
     const uint8_t *src = PHOTOS[ph.photo].pal;
     float tone = knob_val(K_TONE), swell = knob_val(K_SWELL);
     float bright = 0.7f + 0.55f * tone + 0.14f * eng_pulse(), lift = 0.55f * swell, fl = fm_minf(ph.level * 1.8f, 1.0f);
+    float burn = set.fuzz_off ? 0.0f : knob_val(K_FUZZ);   /* the fuzz burns the colours: more contrast, more colour */
     uint32_t i;
     for (i = 0; i < 16u; i++) {
         float r = src[3u * i], g = src[3u * i + 1u], b = src[3u * i + 2u];
@@ -289,6 +293,12 @@ static void photo_palette(void)
         r *= bright;
         g *= bright;
         b *= bright;
+        if (burn > 0.0f) {
+            float m = (r + g + b) * (1.0f / 3.0f), k = 1.0f + 0.9f * burn, sat = 1.0f + 0.8f * burn;
+            r = 128.0f + (m + (r - m) * sat - 128.0f) * k;
+            g = 128.0f + (m + (g - m) * sat - 128.0f) * k;
+            b = 128.0f + (m + (b - m) * sat - 128.0f) * k;
+        }
         if (fire) {
             float f = 0.72f + 0.45f * fl;
             r *= f;
@@ -465,7 +475,7 @@ static struct {
     int16_t key_notes[NKEYS][8];         /* the notes each held key started (one, or a chord) */
     uint8_t key_n[NKEYS], key_vel[NKEYS], key_arp[NKEYS];   /* how many; its velocity; sent to the arpeggio */
     uint8_t arp_used;                    /* a key pressed while ARP was held: the key set, chord mode left as it is */
-    uint8_t seq_used;                    /* ALGORITHM turned while SEQ was held: the level set, the beat left as it is */
+    uint8_t seq_used;                    /* a knob turned while SEQ was held: tempo or level set, the beat left as is */
     uint8_t master;                      /* this FM-1 started the beat: it sends the clock */
     uint32_t ticks_sent;
     uint8_t hold;                        /* PLAY: the notes held */
@@ -840,7 +850,13 @@ static void input(void)
         case B_ARP:                      /* chord mode, on its release (unless a key was set while it was held) */
             ui.arp_used = 0;
             break;
-        case B_SEQ:                      /* the beat, on its release (unless its level was set while it was held) */
+        case B_FX:                       /* the fuzz in or out, its knob kept */
+            set.fuzz_off = (uint8_t)!set.fuzz_off;
+            set_dirty = 1;
+            eng_fuzz_on(!set.fuzz_off);
+            app_say("FUZZ", set.fuzz_off ? "OFF" : "ON");
+            break;
+        case B_SEQ:                      /* the beat, on its release (unless its tempo or level was set while held) */
             ui.seq_used = 0;
             break;
         default:
@@ -876,14 +892,15 @@ static void input(void)
         } else if (k == EN_ALGO && FM1B_BLE_CENTRAL && ui.looking) {
             btdev_choose(btdev_pick() + e);
             ble_device_say();
-        } else if (k == EN_ALGO) {       /* the tempo; with SEQ held, the beat's level */
-            int32_t step = (e > 2 || e < -2) ? 4 : 1;
-            if (btn >> B_SEQ & 1u) {
-                ui.seq_used = 1;
-                beat_level_step(e * step);
-            } else {
-                tempo_step(e * step);
-            }
+        } else if (k == EN_ALGO && (btn >> B_SEQ & 1u)) {   /* SEQ held: the beat's tempo */
+            ui.seq_used = 1;
+            tempo_step(e * ((e > 2 || e < -2) ? 4 : 1));
+        } else if (k == EN_ALGO) {       /* the fuzz, a knob like K1 to K4 */
+            int32_t step = (e > 2 || e < -2) ? 10 : 5;
+            knob_set(K_FUZZ, (int32_t)set.knob[set.patch][K_FUZZ] + e * step, 1);
+        } else if (k == EN_SELECT && (btn >> B_SEQ & 1u)) {   /* SEQ held: the beat's level */
+            ui.seq_used = 1;
+            beat_level_step(e * ((e > 2 || e < -2) ? 4 : 1));
         } else if (k == EN_SELECT) {     /* chord mode's key */
             key_set((int)set.key + (e > 0 ? 1 : -1));
         } else if (k >= EN_K1 && k <= EN_K4) {
@@ -895,7 +912,7 @@ static void input(void)
     ui.btn = btn;
     plat_glow(1);
     plat_leds((set_dirty ? 1u << B_SAVE : 0u) | (ui.hold ? LED_PLAY_GREEN | 1u << B_PLAY : 0u)
-                  | (set.chords ? 1u << B_ARP : 0u)
+                  | (set.chords ? 1u << B_ARP : 0u) | (set.fuzz_off ? 0u : 1u << B_FX)
                   | (eng_beat_on() && (eng_step() & 3u) == 0u ? 1u << B_SEQ : 0u)   /* SEQ blinks the beats */
                   | (btn & ~(1u << B_PLAY)), keys);
 }

@@ -91,7 +91,9 @@ void eng_note_off_isr(int note) { q_push(&q_isr, EV_OFF, note, 0); }
 void eng_sustain_isr(int on) { q_push(&q_isr, EV_SUS, on != 0, 0); }
 void eng_patch_isr(int p) { q_push(&q_isr, EV_PATCH, p, 0); }
 
-static volatile float knob_in[NKNOB] = {0.5f, 0.5f, 0.5f, 0.5f};
+static volatile float knob_in[NKNOB] = {0.5f, 0.5f, 0.5f, 0.5f, 0.0f};
+static volatile uint8_t fuzz_on = 1;
+void eng_fuzz_on(int on) { fuzz_on = (uint8_t)(on != 0); }
 void eng_knob(int k, float v)
 {
     if (k >= 0 && k < NKNOB)
@@ -1117,6 +1119,11 @@ int eng_b_sane(void)
     return finite(rv_lp_l) && finite(rv_lp_r);
 }
 
+/* the fuzz: every voice into one pedal, as a guitar's chord goes, so the notes of a chord grind against each other.
+ * A high-pass first (the lows stay clean, beside it), the gain, a clip that leans one way, then a low-pass that Tone
+ * opens: the fizz kept down. Fuzz blends it in and turns it up; the clean sound gives way as it does */
+static float fz_now, fz_hp_l, fz_hp_r, fz_lp_l, fz_lp_r, fz_lo_l, fz_lo_r;
+
 /* tremolo, wow and saturation: core 0, after the join */
 static float trem_l_ph, trem_r_ph, wow_ph, wow_flut;
 #define WOW_N 512u
@@ -1140,6 +1147,13 @@ void eng_end(int32_t *lr, uint32_t n, float gain)
     float peak = 0.0f;
     if (n > B.n)
         n = B.n;
+    fz_now += ((fuzz_on ? B.knob[K_FUZZ] : 0.0f) - fz_now) * 0.25f;   /* (no clicks as it moves) */
+    if (fz_now < 1e-4f)
+        fz_now = 0.0f;
+    const float fz = fz_now, fz_drive = 1.5f + 46.0f * fz * fz, fz_mix = fm_minf(1.0f, fz * 2.2f);
+    const float fz_out = 0.7f / fm_sqrtf(fz_drive), fz_hpc = 1.0f - fm_expf(-FM_TWO_PI * 140.0f / ENG_FS);
+    const float fz_lpc = 1.0f - fm_expf(-FM_TWO_PI * 1900.0f * fm_exp2f(1.8f * B.knob[K_TONE]) / ENG_FS);
+    const float fz_loc = 1.0f - fm_expf(-FM_TWO_PI * 140.0f / ENG_FS);
     if (ext) {                           /* following a clock in: what its ticks made due, now */
         while (C.run && C.ext_due) {
             C.ext_due--;
@@ -1159,6 +1173,25 @@ void eng_end(int32_t *lr, uint32_t n, float gain)
         float ol, or_, d, fr, w0l, w0r, w1l, w1r;
         uint32_t di, a0, a1;
         float gl = 1.0f, gr = 1.0f;
+        if (fz > 0.0f) {                 /* the fuzz */
+            float hl, hr, yl, yr;
+            fz_hp_l += fz_hpc * (l - fz_hp_l);
+            fz_hp_r += fz_hpc * (r - fz_hp_r);
+            fz_lo_l += fz_loc * (l - fz_lo_l);   /* what the high-pass took: the lows, kept clean */
+            fz_lo_r += fz_loc * (r - fz_lo_r);
+            hl = (l - fz_hp_l) * fz_drive;
+            hr = (r - fz_hp_r) * fz_drive;
+            yl = soft(fm_clampf(hl + 0.22f, -3.0f, 3.0f)) - soft(0.22f);
+            yr = soft(fm_clampf(hr + 0.22f, -3.0f, 3.0f)) - soft(0.22f);
+            fz_lp_l += fz_lpc * (yl - fz_lp_l);
+            fz_lp_r += fz_lpc * (yr - fz_lp_r);
+            if (fz_lp_l < 1e-9f && fz_lp_l > -1e-9f)
+                fz_lp_l = 0.0f;
+            if (fz_lp_r < 1e-9f && fz_lp_r > -1e-9f)
+                fz_lp_r = 0.0f;
+            l = l * (1.0f - fz_mix) + (fz_lp_l * fz_out + fz_lo_l * 0.8f) * fz_mix;
+            r = r * (1.0f - fz_mix) + (fz_lp_r * fz_out + fz_lo_r * 0.8f) * fz_mix;
+        }
         if (td > 0.0f) {                 /* two amps, two speeds (or one sound carried side to side) */
             float ml = sine01(trem_l_ph), mr = p->trem_pan ? -ml : sine01(trem_r_ph);
             if (p->trem_square) {        /* a chop: the sine pushed hard into a soft square */

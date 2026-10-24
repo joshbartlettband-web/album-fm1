@@ -76,6 +76,18 @@ wait 30
 expect_out BLE 90 4C 5A
 key w6 up
 wait 1500
+# ALGORITHM is the fifth knob, FUZZ (FLAME, the patch here, starts it at 128), sent as CC 20; FX takes the fuzz out and back
+out
+turn ALGO 2
+wait 300
+expect knob4 138
+expect_out USB B0 14 45
+tap FX
+wait 30
+listen
+tap FX
+wait 30
+said FUZZ
 # the intro: running at the start, gone by nine seconds, the patch's name after it (a reboot starts it again)
 reboot
 wait 1000
