@@ -1,17 +1,14 @@
 [
-  {"file": "01-fire-pit.jpg",
-   "keep": ["#06020E", "#FFF0D8", "#F08A40", "#7A48B8"],
-   "vivid": 1.3, "dither": false},
-  {"file": "02-maple.jpg",
+  {"file": "01-maple.jpg",
    "keep": ["#C8302A", "#F6A848", "#C8A8D0", "#1E2A18"],
    "vivid": 1.25, "dither": false},
-  {"file": "03-dahlias.jpg", "crop": [0, 120, 720],
+  {"file": "02-dahlias.jpg", "crop": [0, 120, 720],
    "keep": ["#E0207A", "#F09030", "#6AB0E8", "#14140E"],
    "vivid": 1.2, "dither": false},
-  {"file": "04-red-hall.jpg", "crop": [205, 0, 455],
+  {"file": "03-red-hall.jpg", "crop": [205, 0, 455],
    "keep": ["#E01818", "#FFC890", "#140608"],
    "vivid": 1.2, "dither": false},
-  {"file": "05-clematis.jpg", "crop": [236, 0, 720],
+  {"file": "04-clematis.jpg", "crop": [236, 0, 720],
    "keep": ["#F6F6EE", "#E6DC9C", "#1A2A16", "#B8BEC4"],
    "vivid": 1.15, "dither": false}
 ]
