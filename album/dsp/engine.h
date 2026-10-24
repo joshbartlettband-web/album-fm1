@@ -39,7 +39,7 @@ typedef struct {
     float fm_ratio, fm_index, fm_decay;  /* WAVE_FM: modulator ratio, its index, and how fast the index falls (s) */
     float cut_lo, cut_hi;                /* low-pass cutoff (Hz) at Tone 0 and Tone 1 */
     float res;                           /* resonance 0..1 */
-    float fenv, fenv_decay;              /* filter envelope: octaves above the cutoff at a note's start, its fall (s) */
+    float fenv, fenv_decay;              /* filter envelope: octaves off the cutoff at a note's start (below it if <0), its return (s) */
     float breath;                        /* a slow sway of the cutoff, octaves */
     float hp;                            /* high-pass (Hz), 0: none */
     float att, dec, sus, rel;            /* the level's envelope: s, s, 0..1, s */

@@ -84,5 +84,22 @@ static const patch_t PATCHES[] = {
      .trem_l = 7.5f, .trem_r = 9.2f, .trem_depth = 0.18f,
      .swell_lo = 0.15f, .swell_hi = 1.2f, .wet_lo = 0.3f, .wet_hi = 0.9f, .diffuse = 0.85f,
      .tape = 0.25f, .level = 1.55f, .knob = {0.45f, 0.5f, 0.55f, 0.5f}},
+    /* Snowfall: a back yard at night, snow coming down through the porch light onto the grill and the pots. Glass
+     * notes, hollow and soft, muffled the way snow muffles everything, each sinking into a long hush. */
+    {.name = "SNOWFALL", .photo = 9, .wave = WAVE_FM, .oscs = 3, .detune = 8.0f, .fm_ratio = 2.0f,
+     .fm_index = 1.1f, .fm_decay = 2.5f, .noise = 0.04f,
+     .cut_lo = 500.0f, .cut_hi = 6000.0f, .res = 0.1f, .fenv = 0.8f, .fenv_decay = 1.2f, .hp = 120.0f,
+     .att = 0.02f, .dec = 4.0f, .sus = 0.2f, .rel = 3.0f,
+     .arm_cents = 30.0f, .drift_cents = 4.0f, .arm_rate = 0.25f,
+     .swell_lo = 0.4f, .swell_hi = 1.45f, .wet_lo = 0.5f, .wet_hi = 1.0f, .diffuse = 1.0f,
+     .tape = 0.15f, .level = 1.15f, .knob = {0.3f, 0.7f, 0.35f, 0.7f}},
+    /* Tower: a tower block lit gold by the last sun, a street lamp just come on below it. A tall chord, octaves
+     * stacked over a low sine, that starts dark and glows open after each note as the light does, warm on tape. */
+    {.name = "TOWER", .photo = 10, .wave = WAVE_SAW, .oscs = 3, .detune = 11.0f, .interval = 12.0f, .sub = 0.3f,
+     .cut_lo = 450.0f, .cut_hi = 5200.0f, .res = 0.18f, .fenv = -2.4f, .fenv_decay = 0.8f,
+     .att = 0.3f, .dec = 2.5f, .sus = 0.9f, .rel = 2.0f,
+     .arm_cents = 35.0f, .drift_cents = 7.0f, .arm_rate = 0.6f,
+     .swell_lo = 0.2f, .swell_hi = 1.3f, .wet_lo = 0.3f, .wet_hi = 0.9f, .diffuse = 0.75f,
+     .tape = 0.65f, .level = 1.2f, .knob = {0.35f, 0.5f, 0.55f, 0.5f}},
 };
 #define NPATCH ((int)(sizeof PATCHES / sizeof PATCHES[0]))
