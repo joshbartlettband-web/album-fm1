@@ -204,7 +204,7 @@ static uint32_t lz4_dec(const uint8_t *s, uint32_t n, uint8_t *dst, uint32_t cap
 }
 
 #define STRIP 48u                        /* rows a strip: three bands */
-static uint8_t band_px[PHOTO_SIDE * PHOTO_BAND / 2u];   /* one band, packed */
+static uint8_t band_px[PHOTO_SIDE * PHOTO_BAND / 2u] PLAT_POOL;   /* one band, packed */
 static uint8_t strip_idx[PHOTO_SIDE * STRIP] PLAT_POOL; /* the strip's palette indices */
 
 static struct {

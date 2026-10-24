@@ -9,7 +9,7 @@
 
 /* ------------------------------------------------------------------ tools --- */
 #define SINE_N 1024u
-static float sine_tab[SINE_N + 1u];
+static float sine_tab[SINE_N + 1u] PLAT_POOL;
 
 static inline float sine01(float ph)     /* sin(2 pi ph), ph in [0, 1) */
 {
@@ -800,7 +800,7 @@ void eng_init(void)
     for (i = 0; i < ENG_VOICES; i++) {
         V[i].note = -1;
         V[i].stage = ST_OFF;
-        V[i].rng = 0x12345u + 7919u * i;
+        V[i].rng = 74565u + 7919u * i;
         V[i].pan = (float)((int)(i % 3u) - 1) * 0.6f;
     }
     arm.rng = 0xA5A5F00Du;
