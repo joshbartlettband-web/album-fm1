@@ -27,7 +27,7 @@ static inline float sine_wave(float x) { return fm_sinf(x * FM_TWO_PI); }
 #define MAX_PATCH 16u
 
 /* --------------------------------------------------------------- settings --- */
-#define SET_MAGIC 0x414C4231u            /* "ALB1" */
+#define SET_MAGIC 0x414C4232u            /* "ALB2": four patches, one a photo (ALB1 had ten) */
 typedef struct {
     uint32_t magic;
     uint8_t patch;
@@ -213,11 +213,11 @@ static struct {
     float t;                             /* the waver's time */
     uint16_t pal[16];                    /* the palette as the knobs and the sound colour it, byte-swapped RGB565 */
     uint8_t pr[16], pg[16], pb[16];
-    float level;                         /* the fire's flicker (the output's level) */
+    float level;                         /* the warm light's flicker (the output's level) */
     uint32_t last_draw;
 } ph;
 
-/* the palette for this frame: Tone brightens, Swell lifts the reds, the sound makes the fire flicker */
+/* the palette for this frame: Tone brightens, Swell lifts the reds, the sound makes the warm light flicker */
 static void photo_palette(void)
 {
     const uint8_t *src = PHOTOS[ph.photo].pal;
@@ -226,7 +226,7 @@ static void photo_palette(void)
     uint32_t i;
     for (i = 0; i < 16u; i++) {
         float r = src[3u * i], g = src[3u * i + 1u], b = src[3u * i + 2u];
-        int fire = r > 190.0f && g > 110.0f;   /* the fire's warm whites and orange */
+        int fire = r > 190.0f && g > 110.0f;   /* the light's warm whites and orange: sun, a lamp */
         if (r > g + 30.0f && r > b)      /* the red light swells */
             r += (255.0f - r) * lift;
         r *= bright;
@@ -672,8 +672,8 @@ void app_frame(void)
             if (ev == BTDEV_CONNECTED || ev == BTDEV_NO_ANSWER || ev == BTDEV_LOST)
                 app_say("LINK", btdev_word(ev));
     }
-    /* the photo moves with the sound: the waver runs while Glide is up and something sounds, the fire follows the
-     * level; drawn about 20 times a second then, else only when something changed */
+    /* the photo moves with the sound: the waver runs while Glide is up and something sounds, the warm light follows
+     * the level; drawn about 20 times a second then, else only when something changed */
     ph.t += (float)(now - last_ms) * 0.001f * (0.25f + 0.6f * glide);
     if (ph.t > 1000.0f)
         ph.t -= 1000.0f;

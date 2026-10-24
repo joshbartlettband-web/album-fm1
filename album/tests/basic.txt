@@ -20,12 +20,12 @@ expect_out USB C0 01 00
 # K1 (Glide) up two detents, sent as CC 16; HOME puts it back
 turn K1 2
 wait 300
-expect knob0 87
-expect_out USB B0 10 2B
+expect knob0 138
+expect_out USB B0 10 45
 shot knob.png
 tap HOME
 wait 30
-expect knob0 77
+expect knob0 128
 # PLAY holds the notes
 tap PLAY
 wait 30

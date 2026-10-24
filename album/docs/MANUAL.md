@@ -3,7 +3,7 @@
 Album is a series of firmwares for the M-VAVE FM-1, one per record. Each edition is a few deep sounds and the
 photographs they came from, and each sound moves its photo as you play. Edition 01 follows one record: chords bent while they ring (glide guitar), heard mostly through a reverse reverb.
 
-![Red Door at rest: the fire pit photo, the patch's name at the top](img/screen-patch.png "A patch's name, a moment after choosing it")
+![Maple at rest: red maple leaves over a street at sunset, the patch's name at the top](img/screen-patch.png "A patch's name, a moment after choosing it")
 
 ---
 
@@ -43,7 +43,7 @@ shows at the top for a moment when you choose it, and a knob's value shows at th
 | REC | Link to another FM-1 (section 5). Held a second: Bluetooth off or on |
 | MASTER | Volume |
 
-![Red Door with a chord held: the photo wavers sideways with the pitch](img/screen-playing.png "Playing: the photo moves with the sound")
+![Maple with a chord held: the photo wavers sideways with the pitch](img/screen-playing.png "Playing: the photo moves with the sound")
 
 ## 3. The four knobs
 
@@ -58,24 +58,18 @@ Every patch has the same four knobs. Each moves the sound and the photo together
 
 ![Blur turned up: its value at the bottom](img/screen-knob.png "A knob's value while it turns")
 
-The fire in the photo flickers with the sound's level.
+The warm light in each photo (the sun, a lamp) flickers with the sound's level.
 
 ## 4. The patches
 
-The first six come from the fire pit photo; from the seventh on, each patch brings its own photo.
+Each patch has its own photo, and its sound comes from that photo.
 
 | # | Patch | From the photo | Sound |
 | --- | --- | --- | --- |
-| 1 | RED DOOR | The red wash | The main glide chord bed: three detuned saws bent all the time, mostly reverse reverb |
-| 2 | EMBER | The fire pit | A warm low drone with a quiet crackle; the filter breathes |
-| 3 | LANTERN | The lamp by the door | A small, clear bell with a short reverse swell |
-| 4 | SHIVER | The cold night | A bright chord through two tremolos at different speeds, left and right |
-| 5 | BLUR | The moving figures | One note at a time, sliding between notes and never landing cleanly |
-| 6 | FLARE | The violet flare | A high shimmer an octave up that blooms in after each note |
-| 7 | MAPLE | The sun through a red maple leaf | A soft reed organ that sways slowly, warm on tape |
-| 8 | DAHLIA | Pink dahlias in full sun | Bright fuzz chords bent hard, the wash behind them |
-| 9 | RED HALL | One light in a red room at night | A low chord chopped by a fast tremolo, each side at its own speed |
-| 10 | CLEMATIS | A bush of small white flowers | A breathy pad, half tone and half air; each note a cloud |
+| 1 | MAPLE | The sun through a red maple leaf | A soft reed organ that sways slowly, warm on tape |
+| 2 | DAHLIA | Pink dahlias in full sun | Bright fuzz chords bent hard, the wash behind them |
+| 3 | RED HALL | One light in a red room at night | A low chord chopped by a fast tremolo, each side at its own speed |
+| 4 | CLEMATIS | A bush of small white flowers | A breathy pad, half tone and half air; each note a cloud |
 
 ## 5. Two FM-1s as one
 
@@ -105,7 +99,7 @@ In over USB, Bluetooth and the TRS jack; out over USB and Bluetooth. Any channel
 | Note on and off | Plays | The keys |
 | CC 16, 17, 18, 19 | Glide, Swell, Tone, Blur | K1 to K4 |
 | CC 64 | Hold | PLAY |
-| Program change | The patch (0 is RED DOOR) | PRESET |
+| Program change | The patch (0 is MAPLE) | PRESET |
 | CC 120, 123 | All sound off | |
 
 Nothing received is sent back out, so two linked FM-1s never echo.

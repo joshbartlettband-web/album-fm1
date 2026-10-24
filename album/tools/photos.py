@@ -7,9 +7,9 @@ palette (flat by default, dithered if the photo asks), packed 4 bits a pixel and
   tools/photos.py --out GEN/photos.h [--preview DIR]
 
 The photos and their settings are in photos/photos.json (relative to the app):
-  [{"file": "01-fire-pit.jpg",       the source image, in photos/
+  [{"file": "01-maple.jpg",          the source image, in photos/
     "crop": [x, y, size],            optional: the square to use, in the source's pixels (default: centred, full height)
-    "keep": ["#F08040", ...],        colours the palette must hold (a fire's orange that averaging would lose)
+    "keep": ["#F08040", ...],        colours the palette must hold (a leaf's red that averaging would lose)
     "vivid": 1.25,                   colour saturation before reducing (1 = as shot)
     "dither": false}]                Floyd-Steinberg dithering (default false: the flat, posterized look)
 
