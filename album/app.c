@@ -59,7 +59,7 @@ static void settings_defaults(void)
     set.one_core = 0;
     set.key = 0;
     set.chords = 0;
-    set.beat_level = 70;
+    set.beat_level = 50;                 /* (100: twice as loud) */
     set.fuzz_off = 0;
     for (p = 0; p < MAX_PATCH; p++)
         set.tempo[p] = 0;
@@ -87,13 +87,14 @@ static int tempo_now(void)               /* this patch's tempo, BPM */
 static void beat_to_engine(void)
 {
     eng_tempo((float)tempo_now());
-    eng_beat_level((float)set.beat_level * 0.01f);
+    eng_beat_level((float)set.beat_level * 0.014f);   /* 50 the kit as each beat is written, 100 about 6 dB more */
 }
 
 /* ----------------------------------------------------------------- render --- */
 /* MIDI in, from the render: notes straight to the engine; knobs, patches and panic to the main loop, which shows
  * them (and does not send them back out: two linked FM-1s would echo forever) */
-static volatile int32_t midi_patch_req = -1;
+static volatile int32_t midi_patch_req = -1, midi_beat_req = -1;   /* (CC 21: the beat's level) */
+#define CC_BEAT 21u
 static volatile uint8_t midi_knob_req[NKNOB], midi_knob_mask, midi_panic_req, midi_hold_req;
 static volatile uint32_t midi_count;
 
@@ -129,6 +130,8 @@ static void midi_in(void)
                 eng_knob((int)(d1 - CC_KNOB0), (float)d2 / 127.0f);
                 midi_knob_req[d1 - CC_KNOB0] = (uint8_t)d2;
                 midi_knob_mask |= (uint8_t)(1u << (d1 - CC_KNOB0));
+            } else if (d1 == CC_BEAT) {
+                midi_beat_req = (int32_t)d2;
             } else if (d1 == 123u || d1 == 120u)
                 midi_panic_req = 1;
             break;
@@ -679,15 +682,29 @@ static void tempo_step(int32_t d)
     app_say("TEMPO", s);
 }
 
-static void beat_level_step(int32_t d)
+#define SHOW_BEAT ((int8_t)NKNOB)         /* the knob bar showing the beat's level */
+static void beat_level_set(int32_t v, int send)   /* 0..100; shown as a knob's bar is, sent as CC 21 */
 {
-    char s[8];
-    set.beat_level = (uint8_t)clamp((int32_t)set.beat_level + d, 0, 100);
+    v = clamp(v, 0, 100);
+    if (set.beat_level == (uint8_t)v)
+        return;
+    set.beat_level = (uint8_t)v;
     set_dirty = 1;
     beat_to_engine();
-    int_text(set.beat_level, s);
-    app_say("BEAT LEVEL", s);
+    if (send)
+        midi_send3(0xB0u, CC_BEAT, (uint32_t)v * 127u / 100u);
+    ui.knob_shown = SHOW_BEAT;
+    ui.knob_until = plat_ms() + 1200u;
+    ph.dirty = 1;
+    if (ann_on()) {
+        char t[24] = "BEAT ", s[8];
+        int_text(v, s);
+        text_cat(t, s);
+        ann_say(t, 0, ANN_NOW);
+    }
 }
+
+static void beat_level_step(int32_t d) { beat_level_set((int32_t)set.beat_level + d, 1); }
 
 static void show_patch(void)
 {
@@ -900,7 +917,7 @@ static void input(void)
             knob_set(K_FUZZ, (int32_t)set.knob[set.patch][K_FUZZ] + e * step, 1);
         } else if (k == EN_SELECT && (btn >> B_SEQ & 1u)) {   /* SEQ held: the beat's level */
             ui.seq_used = 1;
-            beat_level_step(e * ((e > 2 || e < -2) ? 4 : 1));
+            beat_level_step(e * ((e > 2 || e < -2) ? 10 : 5));
         } else if (k == EN_SELECT) {     /* chord mode's key */
             key_set((int)set.key + (e > 0 ? 1 : -1));
         } else if (k >= EN_K1 && k <= EN_K4) {
@@ -940,11 +957,13 @@ static void overlay(uint32_t y0, uint32_t now)
     if (y0 == 0 && FM1B_BLE_CENTRAL && plat_ble_device() == BLE_DEV_READY && now >= ui.msg_until)
         cv_text(206, 6, &FONT_XS, "LINK", RGB(255, 140, 120));
     if (y0 == 240u - STRIP && ui.knob_shown >= 0 && now < ui.knob_until) {
-        uint32_t k = (uint32_t)ui.knob_shown, w = (uint32_t)(knob_val(k) * 196.0f + 0.5f);
+        uint32_t k = (uint32_t)ui.knob_shown;
+        float val = ui.knob_shown == SHOW_BEAT ? (float)set.beat_level * 0.01f : knob_val(k);
+        uint32_t w = (uint32_t)(val * 196.0f + 0.5f);
         char v[8];
         shade(10, 38);
-        cv_text(12, 14, &FONT_XS, KNOB_NAME[k], RGB(255, 236, 220));
-        int_text((int32_t)(knob_val(k) * 100.0f + 0.5f), v);
+        cv_text(12, 14, &FONT_XS, ui.knob_shown == SHOW_BEAT ? "BEAT" : KNOB_NAME[k], RGB(255, 236, 220));
+        int_text((int32_t)(val * 100.0f + 0.5f), v);
         cv_text(228 - text_w(&FONT_XS, v), 14, &FONT_XS, v, RGB(255, 236, 220));
         cv_rect(12, 32, 216, 6, RGB(70, 20, 30));
         cv_rect(12, 32, (int32_t)w + 20, 6, RGB(240, 60, 60));
@@ -1010,6 +1029,11 @@ void app_frame(void)
         int32_t p = midi_patch_req;
         midi_patch_req = -1;
         patch_set(p, 0);
+    }
+    if (midi_beat_req >= 0) {            /* CC 21 in: the beat's level (not sent back) */
+        int32_t b = midi_beat_req;
+        midi_beat_req = -1;
+        beat_level_set((b * 100 + 63) / 127, 0);
     }
     if (midi_knob_mask) {
         uint8_t m = midi_knob_mask;
@@ -1115,6 +1139,8 @@ int app_expect(const char *what, int *got)
         *got = set.chords;
     else if (!strcmp(what, "beat"))
         *got = eng_beat_on();
+    else if (!strcmp(what, "beat_level"))
+        *got = set.beat_level;
     else if (!strcmp(what, "tempo"))
         *got = tempo_now();
     else if (!strcmp(what, "step"))      /* sixteenths since the beat started */
