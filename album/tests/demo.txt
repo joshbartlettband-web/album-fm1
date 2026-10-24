@@ -182,7 +182,8 @@ wait 700
 shot bluestem.png
 key w12 down 96
 key w9 up
-wait 900
+wait 8600
+# (the intro: the boot photo melting into the first patch, ALBUM 01 fading)
 key w10 down 96
 key w12 up
 wait 600

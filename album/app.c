@@ -302,10 +302,12 @@ static void photo_palette(void)
     }
 }
 
-static void photo_strip(uint32_t y0)     /* rows y0 .. y0 + STRIP of the photo into the canvas, with the knobs' marks */
+/* rows y0 .. y0 + STRIP of a photo into the canvas in the colours pal; fx: with the knobs' marks (the waver, the smear,
+ * in ph's colours), else plain */
+static void photo_strip(uint32_t y0, uint32_t photo, const uint16_t *pal, int fx)
 {
-    const photo_t *p = &PHOTOS[ph.photo];
-    float glide = knob_val(K_GLIDE), blur = knob_val(K_BLUR), arm = eng_arm();
+    const photo_t *p = &PHOTOS[photo];
+    float glide = fx ? knob_val(K_GLIDE) : 0.0f, blur = fx ? knob_val(K_BLUR) : 0.0f, arm = fx ? eng_arm() : 0.0f;
     int32_t rad = (int32_t)(blur * blur * blur * 6.0f);    /* Blur: a sideways smear, up to 6 pixels each way */
     float amp = glide * glide * 7.0f;                      /* Glide: the rows waver, as the pitch does */
     uint32_t b, y, x;
@@ -329,7 +331,7 @@ static void photo_strip(uint32_t y0)     /* rows y0 .. y0 + STRIP of the photo i
         if (rad == 0) {
             for (x = 0; x < 240u; x++) {
                 int32_t sx = clamp((int32_t)x - dx, 0, 239);
-                out[x] = ph.pal[row[sx]];
+                out[x] = pal[row[sx]];
             }
             continue;
         }
@@ -351,6 +353,108 @@ static void photo_strip(uint32_t y0)     /* rows y0 .. y0 + STRIP of the photo i
         }
     }
 }
+
+/* -------------------------------------------------------------- the intro --- */
+/* At power-on: the boot photo with ALBUM 01 in white over it (app_splash draws that first, so it is the first thing
+ * the screen shows), then the photo melts into the first patch's, then the words turn pink, red, orange and gold and
+ * fade away. The keys play all the while. */
+#ifdef PHOTO_BOOT
+#define INTRO_Y0 96u                     /* the strip the words are in, and their row in it */
+#define INTRO_TY 8
+static const uint32_t INTRO_HOLD = 1600u, INTRO_MELT = 2400u;   /* ms: the boot photo alone; it melting away */
+static const struct { uint32_t t; uint8_t r, g, b; } INTRO_INK[] = {   /* the words' colour, ms from the start */
+    {4000u, 255, 255, 255}, {4650u, 255, 128, 196}, {5300u, 236, 44, 70}, {5950u, 255, 142, 44},
+    {6600u, 255, 204, 92}, {7000u, 255, 204, 92},
+};
+static const uint32_t INTRO_GONE = 8200u;   /* faded out by then */
+static uint8_t intro_mask[240u * STRIP] PLAT_POOL;   /* the words' coverage, 0..63 */
+static uint16_t intro_px[240u * STRIP] PLAT_POOL;    /* a strip of the boot photo, while it melts */
+static struct {
+    uint8_t on;
+    uint32_t t0;
+    uint16_t pal[16];                    /* the boot photo's own colours */
+} intro;
+
+static inline uint16_t mix565(uint16_t a, uint16_t b, uint32_t t)   /* (byte-swapped RGB565) a to b, t 0..256 */
+{
+    uint32_t x = swap16(a), y = swap16(b), u = 256u - t;
+    uint32_t r = ((x >> 11) * u + (y >> 11) * t) >> 8, g = (((x >> 5) & 63u) * u + ((y >> 5) & 63u) * t) >> 8,
+             bl = ((x & 31u) * u + (y & 31u) * t) >> 8;
+    return swap16((uint16_t)(r << 11 | g << 5 | bl));
+}
+
+static void intro_prepare(void)          /* the boot photo's colours, and the words' coverage */
+{
+    const uint8_t *src = PHOTOS[PHOTO_BOOT].pal;
+    uint32_t i;
+    for (i = 0; i < 16u; i++)
+        intro.pal[i] = swap16(RGB(src[3u * i], src[3u * i + 1u], src[3u * i + 2u]));
+    cv_begin(240, STRIP, C_BLACK);
+    cv_text((240 - text_w(&FONT_L, "ALBUM 01")) / 2, INTRO_TY, &FONT_L, "ALBUM 01", RGB(255, 255, 255));
+    for (i = 0; i < 240u * STRIP; i++)
+        intro_mask[i] = (uint8_t)((swap16(cv_px[i]) >> 5) & 63u);
+}
+
+static void intro_words(uint16_t ink, uint32_t alpha)   /* the words over the canvas (the strip at INTRO_Y0) */
+{
+    uint32_t i;
+    if (!alpha)
+        return;
+    for (i = 0; i < 240u * STRIP; i++)
+        if (intro_mask[i])
+            cv_px[i] = mix565(cv_px[i], ink, intro_mask[i] * alpha / 63u);
+}
+
+void app_splash(void)                    /* the first screen: the boot photo and the words, white */
+{
+    uint32_t y;
+    intro_prepare();
+    for (y = 0; y < 240u; y += STRIP) {
+        photo_strip(y, PHOTO_BOOT, intro.pal, 0);
+        if (y == INTRO_Y0)
+            intro_words(swap16(RGB(255, 255, 255)), 256u);
+        cv_blit(0, y);
+    }
+}
+
+static void intro_start(void)
+{
+    intro_prepare();
+    intro.on = 1;
+    intro.t0 = plat_ms();
+}
+
+/* a strip of the intro: the patch's photo (drawn already), the boot photo over it as it melts, the words */
+static void intro_strip(uint32_t y0, uint32_t now)
+{
+    uint32_t t = now - intro.t0, i, melt, alpha = 256u;
+    uint16_t ink;
+    if (t < INTRO_HOLD + INTRO_MELT) {
+        melt = t <= INTRO_HOLD ? 256u : 256u - (t - INTRO_HOLD) * 256u / INTRO_MELT;   /* the boot photo's share */
+        for (i = 0; i < 240u * STRIP; i++)
+            intro_px[i] = cv_px[i];
+        photo_strip(y0, PHOTO_BOOT, intro.pal, 0);
+        if (melt < 256u)
+            for (i = 0; i < 240u * STRIP; i++)
+                cv_px[i] = mix565(intro_px[i], cv_px[i], melt);
+    }
+    if (y0 != INTRO_Y0)
+        return;
+    for (i = 1; i + 1u < sizeof INTRO_INK / sizeof INTRO_INK[0] && t >= INTRO_INK[i].t; i++)
+        ;
+    {
+        uint32_t a = INTRO_INK[i - 1u].t, b = INTRO_INK[i].t, k = t <= a ? 0u : t >= b ? 256u : (t - a) * 256u / (b - a);
+        ink = mix565(swap16(RGB(INTRO_INK[i - 1u].r, INTRO_INK[i - 1u].g, INTRO_INK[i - 1u].b)),
+                     swap16(RGB(INTRO_INK[i].r, INTRO_INK[i].g, INTRO_INK[i].b)), k);
+    }
+    {
+        const uint32_t fade0 = INTRO_INK[sizeof INTRO_INK / sizeof INTRO_INK[0] - 1u].t;
+        if (t > fade0)
+            alpha = t >= INTRO_GONE ? 0u : 256u - (t - fade0) * 256u / (INTRO_GONE - fade0);
+    }
+    intro_words(ink, alpha);
+}
+#endif
 
 /* ---------------------------------------------------------------------- UI --- */
 static struct {
@@ -850,7 +954,11 @@ static void draw(void)
     uint32_t y, now = plat_ms();
     photo_palette();
     for (y = 0; y < 240u; y += STRIP) {
-        photo_strip(y);
+        photo_strip(y, ph.photo, ph.pal, 1);
+#ifdef PHOTO_BOOT
+        if (intro.on)
+            intro_strip(y, now);
+#endif
         overlay(y, now);
         cv_blit(0, y);
     }
@@ -863,7 +971,11 @@ void app_ui_init(void)
     ui.knob_shown = -1;
     ph.photo = (uint8_t)(eng_patch_info(set.patch)->photo % PHOTO_COUNT);
     ph.dirty = 1;
+#ifdef PHOTO_BOOT
+    intro_start();                       /* the patch's name once the intro is done */
+#else
     show_patch();
+#endif
 }
 
 void app_frame(void)
@@ -937,6 +1049,17 @@ void app_frame(void)
     had_beat = (uint8_t)eng_beat_on();
     if (((lv > 0.01f && (glide > 0.03f || lv > 0.05f)) || had_beat) && now - ph.last_draw >= 50u)
         ph.dirty = 1;
+#ifdef PHOTO_BOOT
+    if (intro.on) {                      /* the intro: about 30 frames a second, then the patch's name */
+        if (now - intro.t0 >= INTRO_GONE) {
+            intro.on = 0;
+            show_patch();
+            ph.dirty = 1;
+        } else if (now - ph.last_draw >= 33u) {
+            ph.dirty = 1;
+        }
+    }
+#endif
     if (ph.dirty) {
         ph.dirty = 0;
         draw();
@@ -965,6 +1088,10 @@ int app_expect(const char *what, int *got)
         *got = (int)(eng_level() * 100.0f);
     else if (!strcmp(what, "c1"))
         *got = c1_on;
+#ifdef PHOTO_BOOT
+    else if (!strcmp(what, "intro"))     /* the intro still running */
+        *got = intro.on;
+#endif
     else if (!strcmp(what, "key"))
         *got = set.key;
     else if (!strcmp(what, "chords"))
