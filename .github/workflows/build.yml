@@ -95,7 +95,8 @@ jobs:
         run: |
           set -o pipefail
           if ! { python3 base/tools/build.py album --web --release "$V" && \
-                 python3 base/tools/make_site.py album "album/build/album-$V.fwsc" "$V" site; } 2>&1 | tee site.log; then
+                 python3 base/tools/make_site.py album "album/build/album-$V.fwsc" "$V" site && \
+                 python3 album/tools/more.py site; } 2>&1 | tee site.log; then
             msg="$(tail -n 60 site.log | sed -e 's/%/%25/g' -e 's/\r/%0D/g' | sed ':a;N;$!ba;s/\n/%0A/g')"
             echo "::error title=Site build failed::${msg}"
             exit 1
