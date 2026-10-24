@@ -1,0 +1,132 @@
+# Album: each patch for a few seconds, recorded (album_host demo.txt OUTDIR)
+wait 800
+shot boot.png
+master 3400
+wav red-door.wav
+key w6 down 96
+key w8 down 96
+key w10 down 96
+wait 1600
+shot red-door.png
+wait 600
+key w6 up
+key w8 up
+key w10 up
+key w4 down 96
+key w6 down 96
+key w8 down 96
+wait 2000
+key w4 up
+key w6 up
+key w8 up
+wait 2200
+wavstop
+turn PRESET 1
+wait 120
+wav ember.wav
+key w6 down 96
+key w8 down 96
+key w10 down 96
+wait 1600
+shot ember.png
+wait 600
+key w6 up
+key w8 up
+key w10 up
+key w4 down 96
+key w6 down 96
+key w8 down 96
+wait 2000
+key w4 up
+key w6 up
+key w8 up
+wait 2200
+wavstop
+turn PRESET 1
+wait 120
+wav lantern.wav
+key w6 down 96
+key w8 down 96
+key w10 down 96
+wait 1600
+shot lantern.png
+wait 600
+key w6 up
+key w8 up
+key w10 up
+key w4 down 96
+key w6 down 96
+key w8 down 96
+wait 2000
+key w4 up
+key w6 up
+key w8 up
+wait 2200
+wavstop
+turn PRESET 1
+wait 120
+wav shiver.wav
+key w6 down 96
+key w8 down 96
+key w10 down 96
+wait 1600
+shot shiver.png
+wait 600
+key w6 up
+key w8 up
+key w10 up
+key w4 down 96
+key w6 down 96
+key w8 down 96
+wait 2000
+key w4 up
+key w6 up
+key w8 up
+wait 2200
+wavstop
+turn PRESET 1
+wait 120
+wav blur.wav
+key w8 down 96
+wait 420
+key w10 down 96
+wait 420
+key w8 up
+key w11 down 96
+wait 420
+key w10 up
+key w10 down 96
+wait 420
+key w11 up
+key w8 down 96
+wait 420
+key w10 up
+key w6 down 96
+wait 420
+key w8 up
+key w6 up
+shot blur.png
+wait 2200
+wavstop
+turn PRESET 1
+wait 120
+wav flare.wav
+key w6 down 96
+key w8 down 96
+key w10 down 96
+wait 1600
+shot flare.png
+wait 600
+key w6 up
+key w8 up
+key w10 up
+key w4 down 96
+key w6 down 96
+key w8 down 96
+wait 2000
+key w4 up
+key w6 up
+key w8 up
+wait 2200
+wavstop
+expect patch 5

@@ -1,0 +1,156 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Hausway
+"""Album's photos for the FM-1 screen: each one cropped square, scaled to 240 x 240, reduced to its own 16-colour
+palette (flat by default, dithered if the photo asks), packed 4 bits a pixel and LZ4-compressed in bands of 16 rows.
+
+  tools/photos.py --out GEN/photos.h [--preview DIR]
+
+The photos and their settings are in photos/photos.json (relative to the app):
+  [{"file": "01-fire-pit.jpg",       the source image, in photos/
+    "crop": [x, y, size],            optional: the square to use, in the source's pixels (default: centred, full height)
+    "keep": ["#F08040", ...],        colours the palette must hold (a fire's orange that averaging would lose)
+    "vivid": 1.25,                   colour saturation before reducing (1 = as shot)
+    "dither": false}]                Floyd-Steinberg dithering (default false: the flat, posterized look)
+
+The header holds, per photo: the palette (16 x RGB888), the bands' offsets and the compressed bands. The firmware
+unpacks one band (1920 bytes) at a time while it draws (album/photo.c)."""
+import argparse
+import json
+import sys
+from pathlib import Path
+
+import numpy as np
+from PIL import Image, ImageEnhance
+
+APP = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(APP.parent / "base" / "tools"))
+import lz4blk  # noqa: E402  (fm1-base's LZ4 block coder)
+
+SIDE = 240
+BAND = 16                      # rows a band
+COLOURS = 16
+
+
+def hexrgb(s):
+    s = s.lstrip("#")
+    return [int(s[i:i + 2], 16) for i in (0, 2, 4)]
+
+
+def palette_for(px, keep, iters=24, seed=1):
+    """k-means over the pixels with the kept colours fixed: the palette the photo's own colours want, plus the few
+    it must not lose"""
+    rng = np.random.default_rng(seed)
+    data = px.reshape(-1, 3).astype(np.float64)
+    fixed = np.array(keep, dtype=np.float64).reshape(-1, 3)
+    free = COLOURS - len(fixed)
+    # start the free centres spread over the photo's brightness, darkest to brightest
+    order = np.argsort(data.sum(1))
+    starts = data[order[np.linspace(0, len(order) - 1, free).astype(int)]] + rng.normal(0, 0.5, (free, 3))
+    cent = np.vstack([fixed, starts])
+    for _ in range(iters):
+        d = ((data[:, None, :] - cent[None, :, :]) ** 2).sum(2)
+        lab = d.argmin(1)
+        for k in range(len(fixed), COLOURS):
+            m = data[lab == k]
+            if len(m):
+                cent[k] = m.mean(0)
+    # darkest first: index 0 is the photo's black, and the firmware's effects can rely on the order
+    cent = np.clip(np.rint(cent), 0, 255).astype(np.uint8)
+    return cent[np.argsort(cent.astype(int).sum(1), kind="stable")]
+
+
+def reduce(img, pal, dither):
+    if not dither:                 # flat: each pixel to its nearest palette colour
+        px = np.asarray(img).reshape(-1, 3).astype(np.int32)
+        d = ((px[:, None, :] - pal[None, :, :].astype(np.int32)) ** 2).sum(2)
+        return d.argmin(1).astype(np.uint8).reshape(SIDE, SIDE)
+    pimg = Image.new("P", (1, 1))
+    pimg.putpalette(pal.reshape(-1).tolist())       # 16 colours: the quantizer keeps to them
+    q = np.asarray(img.quantize(palette=pimg, dither=Image.Dither.FLOYDSTEINBERG), dtype=np.uint8)
+    if q.max() >= COLOURS:
+        raise SystemExit("photos: the dithered image left the palette")
+    return q
+
+
+def pack(idx):
+    """4 bits a pixel, the left pixel in the high nibble"""
+    flat = idx.reshape(-1)
+    return bytes(((flat[0::2] << 4) | flat[1::2]).astype(np.uint8))
+
+
+def build(spec, src_dir):
+    img = Image.open(src_dir / spec["file"]).convert("RGB")
+    w, h = img.size
+    if "crop" in spec:
+        x, y, s = spec["crop"]
+    else:
+        s = min(w, h)
+        x, y = (w - s) // 2, (h - s) // 2
+    img = img.crop((x, y, x + s, y + s)).resize((SIDE, SIDE), Image.LANCZOS)
+    img = ImageEnhance.Color(img).enhance(float(spec.get("vivid", 1.0)))
+    px = np.asarray(img)
+    pal = palette_for(px, [hexrgb(c) for c in spec.get("keep", [])])
+    idx = reduce(img, pal, bool(spec.get("dither", False)))
+    bands, offs, pos = [], [], 0
+    for b in range(SIDE // BAND):
+        raw = pack(idx[b * BAND:(b + 1) * BAND])
+        c = lz4blk.compress(raw)
+        if lz4blk.decompress(c) != raw:
+            raise SystemExit(f"photos: LZ4 round trip failed ({spec['file']}, band {b})")
+        offs.append(pos)
+        bands.append(c)
+        pos += len(c)
+    offs.append(pos)
+    return pal, idx, b"".join(bands), offs
+
+
+def c_bytes(b, per=24):
+    lines = []
+    for i in range(0, len(b), per):
+        lines.append("    " + ", ".join(f"0x{v:02X}" for v in b[i:i + per]) + ",")
+    return "\n".join(lines)
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--out", required=True)
+    ap.add_argument("--preview", help="a PNG of each photo as the FM-1 shows it, in this directory")
+    a = ap.parse_args()
+    src = APP / "photos"
+    specs = json.loads((src / "photos.json").read_text())
+    out = [f"/* Album's photos: generated by tools/photos.py from photos/photos.json; do not edit */",
+           "#pragma once", "#include <stdint.h>", "",
+           f"#define PHOTO_SIDE {SIDE}u", f"#define PHOTO_BAND {BAND}u",
+           f"#define PHOTO_BANDS {SIDE // BAND}u", f"#define PHOTO_COUNT {len(specs)}u", ""]
+    table = []
+    total = 0
+    for n, spec in enumerate(specs):
+        pal, idx, data, offs = build(spec, src)
+        total += len(data) + 48 + 4 * len(offs)
+        out.append(f"/* {spec['file']}: {len(data)} bytes in {len(offs) - 1} bands */")
+        out.append(f"static const uint8_t PHOTO{n}_PAL[48] = {{")
+        out.append(c_bytes(bytes(pal.reshape(-1).tolist())))
+        out.append("};")
+        out.append(f"static const uint32_t PHOTO{n}_OFF[{len(offs)}] = {{{', '.join(map(str, offs))}}};")
+        out.append(f"static const uint8_t PHOTO{n}_DATA[{len(data)}] = {{")
+        out.append(c_bytes(data))
+        out.append("};")
+        out.append("")
+        table.append(f"    {{PHOTO{n}_PAL, PHOTO{n}_OFF, PHOTO{n}_DATA}},")
+        if a.preview:
+            Path(a.preview).mkdir(parents=True, exist_ok=True)
+            Image.fromarray(pal[idx]).resize((SIDE * 2, SIDE * 2), Image.NEAREST).save(
+                Path(a.preview) / (Path(spec["file"]).stem + "-fm1.png"))
+        print(f"photos: {spec['file']}: {len(data)} bytes", file=sys.stderr)
+    out.append("typedef struct { const uint8_t *pal; const uint32_t *off; const uint8_t *data; } photo_t;")
+    out.append("static const photo_t PHOTOS[PHOTO_COUNT] = {")
+    out += table
+    out.append("};")
+    Path(a.out).parent.mkdir(parents=True, exist_ok=True)
+    Path(a.out).write_text("\n".join(out) + "\n")
+    print(f"photos: {len(specs)} photo(s), {total} bytes in all", file=sys.stderr)
+
+
+if __name__ == "__main__":
+    main()

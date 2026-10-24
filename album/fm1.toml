@@ -1,0 +1,18 @@
+# Album 01, m b v: the build's settings (base/tools/build.py)
+name = "ALBUM"
+id_prefix = "FM-1_2701"                # package identity: dev FM-1_270100, releases FM-1_2701XXYYZZ
+usb_manufacturer = "Album"
+usb_product = "ALBUM FM-1"
+o2 = ["dsp/engine.c"]                  # the sound, at -O2
+include = ["dsp"]
+words = "words.tsv"
+gen = ["tools/photos.py --out {gen}/photos.h"]
+asm = ["cpu1/entry.S"]                 # the second core's entry and stacks
+vendored = ["cpu1/"]                   # the second core's own registers (cpu1/cpu1.c): the register check leaves them
+ble = true                             # Bluetooth MIDI (--no-ble builds without it)
+ble_central = true                     # and the FM-1 links to another FM-1 (any Bluetooth MIDI device)
+# the site (base/tools/make_site.py)
+tagline = "Album 01: m b v. A few deep sounds and the photo each came from."
+repo = "https://github.com/joshbartlettband-web/album-fm1"
+licence = "MIT"
+credits = "Built on fm1-base (Charles Vestal) and felucca-bsp (Leo Kuroshita, Hugelton Instruments)."

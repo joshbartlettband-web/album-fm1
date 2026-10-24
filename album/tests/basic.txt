@@ -1,0 +1,78 @@
+# Album: the controls, MIDI in and out, saving (album_host basic.txt OUTDIR)
+wait 800
+expect patch 0
+expect photo 0
+shot boot.png
+out
+# the keys play, and go out over USB (key w4 is C4)
+key w4 down 100
+wait 30
+expect voices 1
+expect_out USB 90 3C 64
+key w4 up
+wait 30
+expect_out USB 80 3C 00
+# PRESET: the next patch, sent as a program change
+turn PRESET 1
+wait 60
+expect patch 1
+expect_out USB C0 01 00
+# K1 (Glide) up two detents, sent as CC 16; HOME puts it back
+turn K1 2
+wait 300
+expect knob0 87
+expect_out USB B0 10 2B
+shot knob.png
+tap HOME
+wait 30
+expect knob0 77
+# PLAY holds the notes
+tap PLAY
+wait 30
+expect hold 1
+expect_out USB B0 40 7F
+key w4 down 100
+wait 30
+key w4 up
+wait 400
+expect voices 1
+tap PLAY
+wait 30
+expect hold 0
+# the octave, saving, and everything back after a restart
+tap OCT+
+wait 30
+expect octave 1
+expect dirty 1
+tap SAVE
+wait 30
+expect dirty 0
+expect store_writes 1
+reboot
+wait 800
+expect patch 1
+expect octave 1
+# MIDI in: a program change, a knob, a note; nothing of it goes back out (two linked FM-1s would echo forever)
+out
+midi C0 03 00
+wait 60
+expect patch 3
+midi B0 11 7F
+wait 60
+expect knob1 255
+midi 90 40 64
+wait 30
+expect voices 1
+expect_no_out USB 90 40 64
+expect_no_out USB C0 03 00
+midi 80 40 00
+# a linked FM-1 hears the keys too
+wait 1500
+ble connect
+wait 1500
+out
+key w6 down 90
+wait 30
+expect_out BLE 90 4C 5A
+key w6 up
+wait 1500
