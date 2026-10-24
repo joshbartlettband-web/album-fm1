@@ -9,6 +9,7 @@ words = "words.tsv"
 gen = ["tools/photos.py --out {gen}/photos.h"]
 asm = ["cpu1/entry.S"]                 # the second core's entry and stacks
 vendored = ["cpu1/"]                   # the second core's own registers (cpu1/cpu1.c): the register check leaves them
+mmio_skip = ["dsp/"]                   # the sound's numbers (random seeds, thresholds) are not addresses
 ble = true                             # Bluetooth MIDI (--no-ble builds without it)
 ble_central = true                     # and the FM-1 links to another FM-1 (any Bluetooth MIDI device)
 # the site (base/tools/make_site.py)
