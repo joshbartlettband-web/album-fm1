@@ -74,9 +74,17 @@ jobs:
         run: echo "V=0.1.${{ github.run_number }}" >> "$GITHUB_ENV"
       - name: Firmware, with Bluetooth and without
         run: |
-          python3 base/tools/build.py album --release "$V"
-          python3 base/tools/build.py album --release "$V" --no-ble
+          set -o pipefail
+          build() { python3 base/tools/build.py album "$@" 2>&1 | tee -a build.log; }
+          if ! build --release "$V" || ! build --release "$V" --no-ble; then
+            # the build's last lines as one annotation: readable from `gh run view` and the run's summary
+            msg="$(tail -n 80 build.log | sed -e 's/%/%25/g' -e 's/\r/%0D/g' | sed ':a;N;$!ba;s/\n/%0A/g')"
+            echo "::error title=FM-1 build failed::${msg}"
+            exit 1
+          fi
           ls -la album/build/*.fwsc
+          grep -i -E "^(notes?|ram|flash|pool|app|size|\.ram_text)|KB|bytes" build.log | tail -n 30 \
+            | sed -e 's/%/%25/g' | sed ':a;N;$!ba;s/\n/%0A/g' | sed 's/^/::notice title=FM-1 build::/'
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02   # v4.6.2
         with:
           name: album-${{ env.V }}
@@ -85,8 +93,13 @@ jobs:
       - uses: mymindstorm/setup-emsdk@v14
       - name: The emulator and the site
         run: |
-          python3 base/tools/build.py album --web --release "$V"
-          python3 base/tools/make_site.py album "album/build/album-$V.fwsc" "$V" site
+          set -o pipefail
+          if ! { python3 base/tools/build.py album --web --release "$V" && \
+                 python3 base/tools/make_site.py album "album/build/album-$V.fwsc" "$V" site; } 2>&1 | tee site.log; then
+            msg="$(tail -n 60 site.log | sed -e 's/%/%25/g' -e 's/\r/%0D/g' | sed ':a;N;$!ba;s/\n/%0A/g')"
+            echo "::error title=Site build failed::${msg}"
+            exit 1
+          fi
       - uses: actions/upload-pages-artifact@v3
         if: github.ref == 'refs/heads/main'
         with:
