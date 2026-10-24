@@ -10,7 +10,7 @@ Version {{VERSION}}. Installing is at your own risk; the installer can put M-VAV
 
 - [Try it in the browser](emu/): the same code the FM-1 runs, with sound. No FM-1 needed.
 - [Install](install/): from Chrome or Edge, with the FM-1 connected by USB.
-- [Manual](manual/): the patches, the four knobs, linking two FM-1s.
+- [Manual](manual/): the patches, the five knobs, chord mode, the beats, linking two FM-1s.
 - [Download {{PKG}}](firmware/{{PKG}}): for the command-line installer.
 - [Source](https://github.com/joshbartlettband-web/album-fm1): MIT. Built on fm1-base (Charles Vestal) and felucca-bsp
   (Leo Kuroshita, Hügelton Instruments).

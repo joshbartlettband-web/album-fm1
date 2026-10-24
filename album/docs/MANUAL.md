@@ -11,7 +11,7 @@ photographs they came from, and each sound moves its photo as you play. Edition 
 
 1. Install
 2. Playing
-3. The four knobs
+3. The five knobs
 4. The patches
 5. Chord mode
 6. The beat
@@ -40,20 +40,21 @@ shows at the top for a moment when you choose it, and a knob's value shows at th
 | K1 to K4 | Glide, Swell, Tone, Blur |
 | ARP | Chord mode on or off (lit while on). Held, then a key: that key's note becomes the key (section 5) |
 | SELECT | Chord mode's key, a semitone a click |
-| SEQ | The patch's beat on or off (blinks with it) |
-| ALGORITHM | The beat's tempo. With SEQ held: the beat's level |
+| ALGORITHM | Fuzz, the fifth knob (section 3) |
+| FX | The fuzz in or out (lit while in), its setting kept |
+| SEQ | The patch's beat on or off (blinks with it). Held: ALGORITHM sets the tempo, SELECT the beat's level |
 | PLAY | Hold: the notes keep sounding after you let go (lit green). Again: let go. |
 | OCT- / OCT+ | The octave, two down to two up |
-| HOME | This patch's knobs and tempo back where it starts |
+| HOME | This patch's five knobs and tempo back where it starts |
 | SAVE | Keep everything (lit when something changed): section 8 |
 | REC | Link to another FM-1 (section 7). Held a second: Bluetooth off or on |
 | MASTER | Volume |
 
 ![Red Door with a chord held: the photo wavers sideways with the pitch](img/screen-playing.png "Playing: the photo moves with the sound")
 
-## 3. The four knobs
+## 3. The five knobs
 
-Every patch has the same four knobs. Each moves the sound and the photo together.
+Every patch has the same five knobs: K1 to K4, and ALGORITHM for the fuzz. Each moves the sound and the photo together, and each patch keeps its own settings.
 
 | Knob | The sound | The photo |
 | --- | --- | --- |
@@ -61,6 +62,7 @@ Every patch has the same four knobs. Each moves the sound and the photo together
 | K2 Swell | The reverse reverb's length: a quick lift to a slow rise over a second and a half | The red light swells |
 | K3 Tone | Dark to bright, the reverb too | Darker to brighter |
 | K4 Blur | How much of the sound is the reverb, and how smeared: clear to all wash | A sideways smear |
+| ALGORITHM Fuzz | A fuzz pedal on the whole chord at once, so its notes grind together, before the tremolo and the reverb. Clean to all fuzz; the lows stay clean beside it, and Tone opens it up. FX takes it out and puts it back | The colours burn: more contrast, more colour |
 
 ![Blur turned up: its value at the bottom](img/screen-knob.png "A knob's value while it turns")
 
@@ -159,8 +161,8 @@ light a little.
 | SNOWFALL | 64 | Almost nothing gets through the snow |
 | TOWER | 104 | Scattered late-90s dance drums, kept soft (after In Another Way) |
 
-Turn ALGORITHM to change the tempo; each patch keeps its own, and HOME puts it back. Hold SEQ and turn ALGORITHM to
-set the beat's level. Changing patch keeps the beat's place: the new patch's beat and tempo take over on the next
+Hold SEQ and turn ALGORITHM to change the tempo; each patch keeps its own, and HOME puts it back. Hold SEQ and turn
+SELECT to set the beat's level. (Turning a knob while SEQ is held leaves the beat running when you let go.) Changing patch keeps the beat's place: the new patch's beat and tempo take over on the next
 sixteenth. In chord mode on BLUESTEM, the arpeggio follows the same clock, with or without the beat.
 
 ## 7. Two FM-1s as one
@@ -180,7 +182,7 @@ Bluetooth adds a little delay. The slow-swelling patches hide it well.
 
 ## 8. Saving
 
-SAVE keeps the patch you are on, every patch's knobs and tempo, the octave, chord mode and its key, and the beat's
+SAVE keeps the patch you are on, every patch's knobs and tempo, the octave, chord mode and its key, whether the fuzz is in, and the beat's
 level. They come back at the next power-on. Saving
 stops the sound for a moment (the flash is written), so save between phrases.
 
@@ -191,7 +193,7 @@ In over USB, Bluetooth and the TRS jack; out over USB and Bluetooth. Any channel
 | Message | In | Out |
 | --- | --- | --- |
 | Note on and off | Plays | The keys (in chord mode, each chord's notes) |
-| CC 16, 17, 18, 19 | Glide, Swell, Tone, Blur | K1 to K4 |
+| CC 16, 17, 18, 19, 20 | Glide, Swell, Tone, Blur, Fuzz | K1 to K4, ALGORITHM |
 | CC 64 | Hold | PLAY |
 | Program change | The patch (0 is RED DOOR) | PRESET |
 | CC 120, 123 | All sound off | |
