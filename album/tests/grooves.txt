@@ -1,0 +1,205 @@
+# Album: each patch in chord mode over its own beat, recorded (album_host grooves.txt OUTDIR)
+wait 800
+master 3400
+tap ARP
+wait 60
+tap SEQ
+wait 60
+wav groove-red-door.wav
+key w4 down 100
+wait 2100
+key w4 up
+key b2 down 100
+wait 2100
+shot groove-red-door.png
+key b2 up
+key w0 down 100
+wait 2100
+key w0 up
+key w2 down 100
+wait 2600
+key w2 up
+wait 900
+wavstop
+turn PRESET 1
+wait 60
+wav groove-maple.wav
+key w4 down 100
+wait 2100
+key w4 up
+key b2 down 100
+wait 2100
+shot groove-maple.png
+key b2 up
+key w0 down 100
+wait 2100
+key w0 up
+key w2 down 100
+wait 2600
+key w2 up
+wait 900
+wavstop
+turn PRESET 1
+wait 60
+wav groove-dahlia.wav
+key w4 down 100
+wait 2100
+key w4 up
+key b2 down 100
+wait 2100
+shot groove-dahlia.png
+key b2 up
+key w0 down 100
+wait 2100
+key w0 up
+key w2 down 100
+wait 2600
+key w2 up
+wait 900
+wavstop
+turn PRESET 1
+wait 60
+wav groove-flame.wav
+key w4 down 100
+wait 2100
+key w4 up
+key b2 down 100
+wait 2100
+shot groove-flame.png
+key b2 up
+key w0 down 100
+wait 2100
+key w0 up
+key w2 down 100
+wait 2600
+key w2 up
+wait 900
+wavstop
+turn PRESET 1
+wait 60
+wav groove-clematis.wav
+key w4 down 100
+wait 2100
+key w4 up
+key b2 down 100
+wait 2100
+shot groove-clematis.png
+key b2 up
+key w0 down 100
+wait 2100
+key w0 up
+key w2 down 100
+wait 2600
+key w2 up
+wait 900
+wavstop
+turn PRESET 1
+wait 60
+wav groove-whirl.wav
+key w4 down 100
+wait 2100
+key w4 up
+key b2 down 100
+wait 2100
+shot groove-whirl.png
+key b2 up
+key w0 down 100
+wait 2100
+key w0 up
+key w2 down 100
+wait 2600
+key w2 up
+wait 900
+wavstop
+turn PRESET 1
+wait 60
+wav groove-window.wav
+key w4 down 100
+wait 2100
+key w4 up
+key b2 down 100
+wait 2100
+shot groove-window.png
+key b2 up
+key w0 down 100
+wait 2100
+key w0 up
+key w2 down 100
+wait 2600
+key w2 up
+wait 900
+wavstop
+turn PRESET 1
+wait 60
+wav groove-pasture.wav
+key w4 down 100
+wait 2100
+key w4 up
+key b2 down 100
+wait 2100
+shot groove-pasture.png
+key b2 up
+key w0 down 100
+wait 2100
+key w0 up
+key w2 down 100
+wait 2600
+key w2 up
+wait 900
+wavstop
+turn PRESET 1
+wait 60
+wav groove-bluestem.wav
+key w4 down 100
+wait 2100
+key w4 up
+key b2 down 100
+wait 2100
+shot groove-bluestem.png
+key b2 up
+key w0 down 100
+wait 2100
+key w0 up
+key w2 down 100
+wait 2600
+key w2 up
+wait 900
+wavstop
+turn PRESET 1
+wait 60
+wav groove-snowfall.wav
+key w4 down 100
+wait 2100
+key w4 up
+key b2 down 100
+wait 2100
+shot groove-snowfall.png
+key b2 up
+key w0 down 100
+wait 2100
+key w0 up
+key w2 down 100
+wait 2600
+key w2 up
+wait 900
+wavstop
+turn PRESET 1
+wait 60
+wav groove-tower.wav
+key w4 down 100
+wait 2100
+key w4 up
+key b2 down 100
+wait 2100
+shot groove-tower.png
+key b2 up
+key w0 down 100
+wait 2100
+key w0 up
+key w2 down 100
+wait 2600
+key w2 up
+wait 900
+wavstop
+expect beat 1
+expect patch 10

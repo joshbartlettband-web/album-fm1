@@ -2,8 +2,10 @@
  * Copyright (c) 2026 Hausway */
 /* Album 01: a few deep sounds and the photo each one came from. The keys play; PRESET picks the patch (and its
  * photo); the four knobs are Glide, Swell, Tone and Blur on every patch, and each moves the photo as it moves the
- * sound. PLAY holds the notes; HOME puts the knobs back where the patch starts; SAVE keeps everything; REC links to
- * another FM-1 (or any Bluetooth MIDI device), held a second it turns Bluetooth off or on.
+ * sound. ARP turns chord mode on (chords.h) and SELECT picks its key (or hold ARP and press a key); SEQ starts the
+ * patch's beat and ALGORITHM sets its tempo (with SEQ held, its level). PLAY holds the notes; HOME puts the knobs and
+ * the tempo back where the patch starts; SAVE keeps everything; REC links to another FM-1 (or any Bluetooth MIDI
+ * device), held a second it turns Bluetooth off or on.
  *
  * Part of the unity build (base/device/unity.c, base/host/plat_host.c), after the platform: gfx.c (the canvas, the
  * fonts), announce.c (the screen reader) and lib/btdev.c are in scope. The sound is dsp/engine.c, compiled apart. */
@@ -27,7 +29,7 @@ static inline float sine_wave(float x) { return fm_sinf(x * FM_TWO_PI); }
 #define MAX_PATCH 16u
 
 /* --------------------------------------------------------------- settings --- */
-#define SET_MAGIC 0x414C4234u            /* "ALB4": eleven patches, one a photo (earlier layouts start fresh) */
+#define SET_MAGIC 0x414C4235u            /* "ALB5": chord mode and the beats (earlier layouts start fresh) */
 typedef struct {
     uint32_t magic;
     uint8_t patch;
@@ -35,6 +37,11 @@ typedef struct {
     uint8_t ble_off;                     /* Bluetooth switched off (REC held) */
     uint8_t one_core;                    /* the second core switched off by hand (OCT- held at power-on) */
     uint8_t knob[MAX_PATCH][NKNOB];      /* each patch's knobs, 0..255 */
+    uint8_t key;                         /* chord mode's key, 0 (C) .. 11 */
+    uint8_t chords;                      /* chord mode on */
+    uint8_t beat_level;                  /* 0..100 */
+    uint8_t pad;
+    int8_t tempo[MAX_PATCH];             /* each patch's tempo, BPM from its beat's own */
 } settings_t;
 static settings_t set;
 static uint8_t set_dirty;
@@ -49,6 +56,11 @@ static void settings_defaults(void)
     set.octave = 0;
     set.ble_off = 0;
     set.one_core = 0;
+    set.key = 0;
+    set.chords = 0;
+    set.beat_level = 70;
+    for (p = 0; p < MAX_PATCH; p++)
+        set.tempo[p] = 0;
     for (p = 0; p < MAX_PATCH; p++)
         for (k = 0; k < NKNOB; k++)
             set.knob[p][k] = (uint8_t)(p < (uint32_t)eng_patch_count()
@@ -64,6 +76,18 @@ static void knobs_to_engine(void)
         eng_knob((int)k, knob_val(k));
 }
 
+static int tempo_now(void)               /* this patch's tempo, BPM */
+{
+    const beat_t *b = eng_patch_info(set.patch)->beat;
+    return (b ? (int)b->bpm : 90) + set.tempo[set.patch];
+}
+
+static void beat_to_engine(void)
+{
+    eng_tempo((float)tempo_now());
+    eng_beat_level((float)set.beat_level * 0.01f);
+}
+
 /* ----------------------------------------------------------------- render --- */
 /* MIDI in, from the render: notes straight to the engine; knobs, patches and panic to the main loop, which shows
  * them (and does not send them back out: two linked FM-1s would echo forever) */
@@ -77,8 +101,12 @@ static void midi_in(void)
     int port;
     while (plat_midi_in(&pkt, &port)) {
         uint32_t st = (pkt >> 8) & 0xFFu, d1 = (pkt >> 16) & 0x7Fu, d2 = (pkt >> 24) & 0x7Fu;
+        if (st == 0xF8u || st == 0xFAu || st == 0xFBu || st == 0xFCu) {
+            eng_clock_in((int)st);       /* a linked FM-1's beat (or a computer's): its clock, its start and stop */
+            continue;
+        }
         if (st >= 0xF0u)
-            continue;                    /* (clock and the rest: nothing here is timed) */
+            continue;
         midi_count++;
         switch (st & 0xF0u) {
         case 0x90u:
@@ -131,23 +159,51 @@ void app_render(int32_t *lr, uint32_t n, uint32_t master_q12)
 
 void app_panic(void) { eng_panic(); }
 
-void app_overload(void)                  /* the render near its limit: one voice fewer, down to six */
+/* the render near its limit: one voice fewer, down to six. They come back once the load has eased (app_frame), so
+ * one heavy moment (a save, a burst of MIDI) does not leave the rest of the session short of voices */
+static uint32_t shed_top, calm_since;
+void app_overload(void)
 {
     int cap = eng_voice_cap(0);
+    if (!shed_top)
+        shed_top = (uint32_t)cap;
     if (cap > 6)
         eng_voice_cap(cap - 1);
+    calm_since = plat_ms();
+}
+
+static void voices_back(uint32_t now)    /* a shed voice back after each two calm seconds */
+{
+    int cap, top = (int)shed_top;
+    if (!shed_top)
+        return;
+#ifndef PLAT_HOST
+    if (!c1_on && top > 8)               /* (one core since: eight is its whole) */
+        top = 8;
+#endif
+    cap = eng_voice_cap(0);
+    if (cap >= top)
+        shed_top = 0;
+    else if (plat_cpu_pct() >= 60u)
+        calm_since = now;
+    else if (now - calm_since >= 2000u) {
+        eng_voice_cap(cap + 1);
+        calm_since = now;
+    }
 }
 
 void app_init(void)
 {
     eng_init();
     if (plat_store_load(OBJ_SETTINGS, &set, sizeof set) != (int)sizeof set || set.magic != SET_MAGIC
-        || set.octave < -2 || set.octave > 2 || set.ble_off > 1u || set.one_core > 1u)
+        || set.octave < -2 || set.octave > 2 || set.ble_off > 1u || set.one_core > 1u || set.key > 11u
+        || set.chords > 1u || set.beat_level > 100u)
         settings_defaults();
     if (set.patch >= (uint32_t)eng_patch_count())
         set.patch = 0;
     eng_patch(set.patch);
     knobs_to_engine();
+    beat_to_engine();
 #ifndef PLAT_HOST
     if (!set.one_core && !(plat_buttons() >> B_OCTDN & 1u))   /* OCT- held at power-on: one core, this time */
         c1_start();
@@ -217,12 +273,13 @@ static struct {
     uint32_t last_draw;
 } ph;
 
-/* the palette for this frame: Tone brightens, Swell lifts the reds, the sound makes the warm light flicker */
+/* the palette for this frame: Tone brightens, Swell lifts the reds, the sound makes the warm light flicker, the
+ * beat's kick lifts it all a little */
 static void photo_palette(void)
 {
     const uint8_t *src = PHOTOS[ph.photo].pal;
     float tone = knob_val(K_TONE), swell = knob_val(K_SWELL);
-    float bright = 0.7f + 0.55f * tone, lift = 0.55f * swell, fl = fm_minf(ph.level * 1.8f, 1.0f);
+    float bright = 0.7f + 0.55f * tone + 0.14f * eng_pulse(), lift = 0.55f * swell, fl = fm_minf(ph.level * 1.8f, 1.0f);
     uint32_t i;
     for (i = 0; i < 16u; i++) {
         float r = src[3u * i], g = src[3u * i + 1u], b = src[3u * i + 2u];
@@ -301,7 +358,12 @@ static struct {
     uint32_t msg_until, knob_until;
     int8_t knob_shown;                   /* the knob whose bar is up, -1 none */
     uint32_t keys, btn;
-    int32_t key_note[NKEYS];             /* the note each held key started (the octave may change while held) */
+    int16_t key_notes[NKEYS][8];         /* the notes each held key started (one, or a chord) */
+    uint8_t key_n[NKEYS], key_vel[NKEYS], key_arp[NKEYS];   /* how many; its velocity; sent to the arpeggio */
+    uint8_t arp_used;                    /* a key pressed while ARP was held: the key set, chord mode left as it is */
+    uint8_t seq_used;                    /* ALGORITHM turned while SEQ was held: the level set, the beat left as it is */
+    uint8_t master;                      /* this FM-1 started the beat: it sends the clock */
+    uint32_t ticks_sent;
     uint8_t hold;                        /* PLAY: the notes held */
     uint8_t looking;                     /* REC: looking for Bluetooth MIDI devices */
     uint32_t rec_t;
@@ -382,6 +444,137 @@ static void midi_send3(uint32_t st, uint32_t d1, uint32_t d2)   /* out over USB 
     plat_midi_send((st >> 4) | st << 8 | d1 << 16 | d2 << 24, TO_USB | TO_BLE);
 }
 
+/* ------------------------------------------------------------ the keys --- */
+/* Each key starts one note, or in chord mode a chord (chords.h). A note two held chords share sounds once and lets
+ * go when the last of them does: common tones ring on through a change of chord, as open strings do. The notes go
+ * out over MIDI as played, so a linked FM-1 or a computer gets the chord itself. */
+#include "chords.h"
+
+static uint8_t note_ref[128];
+
+static void note_down(int n, int v, int arp)
+{
+    if (note_ref[n]++ == 0u) {
+        if (arp)
+            eng_arp_note(n, 1);
+        else
+            eng_note_on(n, v);
+        midi_send3(0x90u, (uint32_t)n, (uint32_t)v);
+    }
+}
+
+static void note_up(int n, int arp)
+{
+    if (note_ref[n] && --note_ref[n] == 0u) {
+        if (arp)
+            eng_arp_note(n, 0);
+        else
+            eng_note_off(n);
+        midi_send3(0x80u, (uint32_t)n, 0);
+    }
+}
+
+static void key_down(uint32_t k, uint32_t v, int quiet)
+{
+    int bass = clamp(53 + (int32_t)k + 12 * set.octave, 0, 127), i;
+    const patch_t *p = eng_patch_info(set.patch);
+    ui.key_vel[k] = (uint8_t)v;
+    if (set.chords) {
+        char name[16];
+        ui.key_n[k] = (uint8_t)chord_build(bass, set.key, p->chord, ui.key_notes[k], name);
+        ui.key_arp[k] = p->mono;
+        if (!quiet) {
+            app_say(name, "");
+            ui.msg_until = plat_ms() + 900u;
+        }
+    } else {
+        ui.key_notes[k][0] = (int16_t)bass;
+        ui.key_n[k] = 1;
+        ui.key_arp[k] = 0;
+    }
+    for (i = 0; i < ui.key_n[k]; i++)
+        note_down(clamp(ui.key_notes[k][i], 0, 127), (int)v, ui.key_arp[k]);
+}
+
+static void key_up(uint32_t k)
+{
+    int i;
+    for (i = 0; i < ui.key_n[k]; i++)
+        note_up(clamp(ui.key_notes[k][i], 0, 127), ui.key_arp[k]);
+    ui.key_n[k] = 0;
+}
+
+static void keys_again(void)             /* the held keys played afresh: a new patch, key or mode */
+{
+    uint32_t k;
+    for (k = 0; k < NKEYS; k++)
+        if (ui.keys >> k & 1u)
+            key_up(k);
+    for (k = 0; k < NKEYS; k++)
+        if (ui.keys >> k & 1u)
+            key_down(k, ui.key_vel[k], 1);
+}
+
+static void key_set(int key)
+{
+    set.key = (uint8_t)(((key % 12) + 12) % 12);
+    set_dirty = 1;
+    keys_again();
+    app_say("KEY", KEY_NAME(set.key));
+}
+
+static void chords_set(int on)
+{
+    set.chords = (uint8_t)(on != 0);
+    set_dirty = 1;
+    keys_again();
+    app_say("CHORDS", set.chords ? KEY_NAME(set.key) : "OFF");
+}
+
+static void beat_set(int on)             /* SEQ: start or stop; a linked FM-1 starts and stops with it */
+{
+    if (on) {
+        beat_to_engine();
+        eng_beat(1);
+        midi_send3(0xFAu, 0, 0);
+        ui.master = 1;
+        ui.ticks_sent = 0;
+    } else {
+        eng_beat(0);
+        midi_send3(0xFCu, 0, 0);
+        ui.master = 0;
+    }
+    {
+        char t[12];
+        int_text(tempo_now(), t);
+        text_cat(t, " BPM");
+        app_say(on ? "BEAT" : "BEAT OFF", on ? t : "");
+    }
+}
+
+static void tempo_step(int32_t d)
+{
+    const beat_t *b = eng_patch_info(set.patch)->beat;
+    int base = b ? (int)b->bpm : 90, t = clamp(tempo_now() + d, 50, 200);
+    char s[12];
+    set.tempo[set.patch] = (int8_t)clamp(t - base, -100, 100);
+    set_dirty = 1;
+    beat_to_engine();
+    int_text(tempo_now(), s);
+    text_cat(s, " BPM");
+    app_say("TEMPO", s);
+}
+
+static void beat_level_step(int32_t d)
+{
+    char s[8];
+    set.beat_level = (uint8_t)clamp((int32_t)set.beat_level + d, 0, 100);
+    set_dirty = 1;
+    beat_to_engine();
+    int_text(set.beat_level, s);
+    app_say("BEAT LEVEL", s);
+}
+
 static void show_patch(void)
 {
     char t[24] = "";
@@ -404,6 +597,8 @@ static void patch_set(int32_t p, int send)
     set_dirty = 1;
     eng_patch(p);
     knobs_to_engine();
+    beat_to_engine();                    /* the beat keeps its place; the new patch's pattern and tempo take over */
+    keys_again();
     ph.photo = (uint8_t)(eng_patch_info(p)->photo % PHOTO_COUNT);
     if (send)
         midi_send3(0xC0u, (uint32_t)p, 0);
@@ -487,16 +682,20 @@ static void input(void)
     for (k = 0; k < NKEYS; k++) {        /* key 0 is F3 (MIDI 53) */
         uint32_t bit = 1u << k;
         if ((keys & bit) && !(ui.keys & bit)) {
-            int32_t note = clamp(53 + (int32_t)k + 12 * set.octave, 0, 127);
             uint32_t v = touch_vel(k);
             v = v ? v : 100u;
-            ui.key_note[k] = note;
-            eng_note_on((int)note, (int)v);
-            midi_send3(0x90u, (uint32_t)note, v);
+            if (btn >> B_ARP & 1u) {     /* ARP held: this key's note is the key */
+                ui.arp_used = 1;
+                ui.key_n[k] = 0;
+                if (!set.chords)
+                    set.chords = 1;
+                key_set(53 + (int32_t)k);
+                continue;
+            }
+            key_down(k, v, 0);
             ph.dirty |= 2u;
         } else if (!(keys & bit) && (ui.keys & bit)) {
-            eng_note_off((int)ui.key_note[k]);
-            midi_send3(0x80u, (uint32_t)ui.key_note[k], 0);
+            key_up(k);
         }
     }
     for (k = 0; k < NB; k++) {
@@ -517,6 +716,8 @@ static void input(void)
             uint32_t j;
             for (j = 0; j < NKNOB; j++)
                 knob_set(j, (int32_t)(eng_patch_info(set.patch)->knob[j] * 255.0f + 0.5f), 1);
+            set.tempo[set.patch] = 0;
+            beat_to_engine();
             app_say("KNOBS", "AS THEY START");
             break;
         }
@@ -532,10 +733,20 @@ static void input(void)
             if (FM1B_BLE)
                 ui.rec_t = plat_ms();
             break;
+        case B_ARP:                      /* chord mode, on its release (unless a key was set while it was held) */
+            ui.arp_used = 0;
+            break;
+        case B_SEQ:                      /* the beat, on its release (unless its level was set while it was held) */
+            ui.seq_used = 0;
+            break;
         default:
             break;
         }
     }
+    if (!(btn >> B_ARP & 1u) && (ui.btn >> B_ARP & 1u) && !ui.arp_used)
+        chords_set(!set.chords);
+    if (!(btn >> B_SEQ & 1u) && (ui.btn >> B_SEQ & 1u) && !ui.seq_used)
+        beat_set(!eng_beat_on());
     if (FM1B_BLE && ui.rec_t) {          /* REC held a second: Bluetooth off or on; a press: link */
         if (btn >> B_REC & 1u) {
             if (plat_ms() - ui.rec_t >= 1000u) {
@@ -561,6 +772,16 @@ static void input(void)
         } else if (k == EN_ALGO && FM1B_BLE_CENTRAL && ui.looking) {
             btdev_choose(btdev_pick() + e);
             ble_device_say();
+        } else if (k == EN_ALGO) {       /* the tempo; with SEQ held, the beat's level */
+            int32_t step = (e > 2 || e < -2) ? 4 : 1;
+            if (btn >> B_SEQ & 1u) {
+                ui.seq_used = 1;
+                beat_level_step(e * step);
+            } else {
+                tempo_step(e * step);
+            }
+        } else if (k == EN_SELECT) {     /* chord mode's key */
+            key_set((int)set.key + (e > 0 ? 1 : -1));
         } else if (k >= EN_K1 && k <= EN_K4) {
             int32_t step = (e > 2 || e < -2) ? 10 : 5;     /* a fast turn goes further */
             knob_set(k - EN_K1, (int32_t)set.knob[set.patch][k - EN_K1] + e * step, 1);
@@ -570,6 +791,8 @@ static void input(void)
     ui.btn = btn;
     plat_glow(1);
     plat_leds((set_dirty ? 1u << B_SAVE : 0u) | (ui.hold ? LED_PLAY_GREEN | 1u << B_PLAY : 0u)
+                  | (set.chords ? 1u << B_ARP : 0u)
+                  | (eng_beat_on() && (eng_step() & 3u) == 0u ? 1u << B_SEQ : 0u)   /* SEQ blinks the beats */
                   | (btn & ~(1u << B_PLAY)), keys);
 }
 
@@ -605,8 +828,21 @@ static void overlay(uint32_t y0, uint32_t now)
         cv_rect(12, 32, 216, 6, RGB(70, 20, 30));
         cv_rect(12, 32, (int32_t)w + 20, 6, RGB(240, 60, 60));
     }
-    if (y0 == 240u - STRIP && ui.hold && !(ui.knob_shown >= 0 && now < ui.knob_until))
-        cv_text(12, 30, &FONT_XS, "HOLD", RGB(140, 255, 160));
+    if (y0 == 240u - STRIP && !(ui.knob_shown >= 0 && now < ui.knob_until)) {
+        if (ui.hold)
+            cv_text(12, 30, &FONT_XS, "HOLD", RGB(140, 255, 160));
+        if (eng_beat_on()) {
+            char t[12];
+            int_text(tempo_now(), t);
+            text_cat(t, " BPM");
+            cv_text(70, 30, &FONT_XS, t, RGB(255, 236, 220));
+        }
+        if (set.chords) {
+            char t[12] = "KEY ";
+            text_cat(t, KEY_NAME(set.key));
+            cv_text(228 - text_w(&FONT_XS, t), 30, &FONT_XS, t, RGB(255, 200, 120));
+        }
+    }
 }
 
 static void draw(void)
@@ -635,10 +871,11 @@ void app_frame(void)
     uint32_t now = plat_ms(), k;
     float glide = knob_val(K_GLIDE), lv = eng_level();
     static uint32_t last_ms;
-    static uint8_t had_msg, had_knob, had_link;
+    static uint8_t had_msg, had_knob, had_link, had_beat;
     uint8_t link = (uint8_t)(FM1B_BLE_CENTRAL && plat_ble_device() == BLE_DEV_READY);
     input();
     speak();
+    voices_back(now);
     /* what came in over MIDI that the screen shows */
     if (midi_patch_req >= 0) {
         int32_t p = midi_patch_req;
@@ -660,6 +897,17 @@ void app_frame(void)
         ui.hold = (uint8_t)(midi_hold_req == 2u);
         midi_hold_req = 0;
         ph.dirty = 1;
+    }
+    if (ui.master && eng_beat_on() && !eng_clock_ext()) {   /* the clock out: a linked FM-1 follows it */
+        uint32_t t = eng_ticks();
+        if (t - ui.ticks_sent > 12u)     /* (fallen far behind: catch up rather than burst) */
+            ui.ticks_sent = t - 1u;
+        while (ui.ticks_sent < t) {
+            midi_send3(0xF8u, 0, 0);
+            ui.ticks_sent++;
+        }
+    } else if (!eng_beat_on()) {
+        ui.master = 0;
     }
     if (FM1B_BLE_CENTRAL) {
         static int found;
@@ -684,7 +932,10 @@ void app_frame(void)
     had_msg = (uint8_t)(now < ui.msg_until);
     had_knob = (uint8_t)(now < ui.knob_until);
     had_link = link;
-    if ((lv > 0.01f && (glide > 0.03f || lv > 0.05f)) && now - ph.last_draw >= 50u)
+    if ((uint8_t)eng_beat_on() != had_beat)
+        ph.dirty = 1;
+    had_beat = (uint8_t)eng_beat_on();
+    if (((lv > 0.01f && (glide > 0.03f || lv > 0.05f)) || had_beat) && now - ph.last_draw >= 50u)
         ph.dirty = 1;
     if (ph.dirty) {
         ph.dirty = 0;
@@ -714,6 +965,22 @@ int app_expect(const char *what, int *got)
         *got = (int)(eng_level() * 100.0f);
     else if (!strcmp(what, "c1"))
         *got = c1_on;
+    else if (!strcmp(what, "key"))
+        *got = set.key;
+    else if (!strcmp(what, "chords"))
+        *got = set.chords;
+    else if (!strcmp(what, "beat"))
+        *got = eng_beat_on();
+    else if (!strcmp(what, "tempo"))
+        *got = tempo_now();
+    else if (!strcmp(what, "step"))      /* sixteenths since the beat started */
+        *got = (int)eng_step();
+    else if (!strcmp(what, "notes")) {   /* notes the keys hold */
+        int i, n = 0;
+        for (i = 0; i < 128; i++)
+            n += note_ref[i] != 0;
+        *got = n;
+    }
     else
         return 0;
     return 1;

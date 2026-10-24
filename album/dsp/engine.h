@@ -22,6 +22,21 @@
 
 enum { K_GLIDE, K_SWELL, K_TONE, K_BLUR, NKNOB };
 enum { WAVE_SAW, WAVE_PULSE, WAVE_TRI, WAVE_SINE, WAVE_FM };
+/* chord mode's voicings, one a patch (the voicings themselves are the app's: chords.h) */
+enum { CH_OPEN, CH_ORGAN, CH_POWER, CH_DARK, CH_SPREAD, CH_CLUSTER, CH_SEVENTH, CH_FIFTHS, CH_ARP, CH_ICE, CH_TALL,
+       NCHORD };
+
+/* a patch's beat: one bar of sixteenths a drum, written as text, '.' a rest and '-' 'o' 'x' soft, medium, full */
+typedef struct {
+    float bpm;
+    float swing;                         /* the off sixteenths late by this share of a sixteenth, 0..0.5 */
+    float tone;                          /* the kit's low-pass (Hz): how muffled */
+    float send;                          /* how much of the kit goes into the reverse reverb, 0..1 */
+    float level;
+    uint8_t brush;                       /* 1: the snare is a brush */
+    const char *kick, *snare, *hat, *open, *tom, *rim;
+    const char *fill;                    /* the snare in every fourth bar, if any (the roll into the next phrase) */
+} beat_t;
 
 typedef struct {
     const char *name;
@@ -56,6 +71,9 @@ typedef struct {
     float tape;                          /* saturation and wow, 0..1 */
     float level;                         /* the patch's loudness trim */
     float knob[NKNOB];                   /* the knobs where the patch starts */
+    uint8_t chord;                       /* CH_*: how chord mode voices a chord on this patch */
+    uint8_t arp_div;                     /* mono patches in chord mode: sixteenths between the arpeggio's notes */
+    const beat_t *beat;                  /* its beat */
 } patch_t;
 
 void eng_init(void);
@@ -71,6 +89,19 @@ void eng_note_off_isr(int note);
 void eng_sustain_isr(int on);
 void eng_patch_isr(int p);
 void eng_knob(int k, float v);           /* 0..1, any context: the next block takes it */
+void eng_arp_note(int note, int on);     /* a mono patch in chord mode: a note into (or out of) the arpeggio */
+
+/* the beat and the clock it shares with the arpeggio. SEQ starts it at a bar's start; a patch change keeps its place.
+ * Clock in (MIDI F8, from the render) takes over from the tempo while it comes, as a linked FM-1's does */
+void eng_beat(int on);                   /* main loop */
+void eng_tempo(float bpm);               /* main loop: this patch's tempo */
+void eng_beat_level(float v);            /* 0..1 */
+void eng_clock_in(int what);             /* the render's MIDI: 0xF8 a tick, 0xFA start, 0xFC stop */
+int eng_beat_on(void);
+uint32_t eng_ticks(void);                /* clock ticks (24 a beat) since the beat started: the main loop sends them */
+uint32_t eng_step(void);                 /* sixteenths since the beat started */
+float eng_pulse(void);                   /* the kick, 0..1, decaying: the photo's pulse */
+int eng_clock_ext(void);                 /* 1 while a clock comes in */
 
 int eng_patch_count(void);
 const patch_t *eng_patch_info(int p);

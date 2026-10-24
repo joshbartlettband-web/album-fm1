@@ -6,6 +6,46 @@
 #pragma once
 #include "engine.h"
 
+/* The beats, one a patch, each after a drum part on the records, kept soft and under the wash. A bar of sixteenths
+ * a drum: '.' a rest, '-' soft, 'o' medium, 'x' full. */
+/* half-time and heavy; Only Shallow opens on a snare roll, and here one rolls into every fourth bar */
+static const beat_t BEAT_RED_DOOR = {.bpm = 86.0f, .tone = 5200.0f, .send = 0.45f, .level = 0.9f,
+    .kick = "x.......x.x.....", .snare = "....x.......x...", .hat = "o.-.o.-.o.-.o.-.",
+    .fill = "....x...-o-oxoxx"};
+/* Is This and Yes: a pulse so muffled it is barely there, brushed */
+static const beat_t BEAT_MAPLE = {.bpm = 70.0f, .tone = 1300.0f, .send = 0.35f, .level = 1.0f, .brush = 1,
+    .kick = "x.........x.....", .snare = "....o.......o...", .hat = "..-...-...-...-."};
+/* Only Tomorrow: a quietly punchy backbeat over a driving bass */
+static const beat_t BEAT_DAHLIA = {.bpm = 100.0f, .tone = 6500.0f, .send = 0.2f, .level = 0.85f,
+    .kick = "x.....x.x.....x.", .snare = "....x.......x...", .hat = "x.o.x.o.x.o.x.o.",
+    .fill = "....x.......x.xx"};
+/* Nothing Is: one figure over and over until it hypnotises, on low toms */
+static const beat_t BEAT_FLAME = {.bpm = 100.0f, .tone = 2800.0f, .send = 0.3f, .level = 0.9f,
+    .kick = "x.......x.......", .snare = "....-.......x...", .tom = "o.-.o.-.o.-.o.-."};
+/* drums buried deep in the wash, as on To Here Knows When: a brush and a breath */
+static const beat_t BEAT_CLEMATIS = {.bpm = 64.0f, .tone = 1800.0f, .send = 0.6f, .level = 0.8f, .brush = 1,
+    .kick = "x...............", .snare = "........o.......", .hat = "-...-...-...-..."};
+/* Soon's dance groove under the guitars, loose and swung */
+static const beat_t BEAT_WHIRL = {.bpm = 98.0f, .swing = 0.28f, .tone = 7000.0f, .send = 0.25f, .level = 0.8f,
+    .kick = "x.....x...x.....", .snare = "....x.......x...", .hat = "xoxoxoxoxoxoxo..",
+    .open = "..............o."};
+/* a rainy night's slow, swung beat on a rim */
+static const beat_t BEAT_WINDOW = {.bpm = 80.0f, .swing = 0.2f, .tone = 2600.0f, .send = 0.3f, .level = 0.9f,
+    .kick = "x......x..x.....", .rim = "....x.......x...", .hat = "o.-.o.-.o.-.o.--"};
+/* a heartbeat, slow, and a brush */
+static const beat_t BEAT_PASTURE = {.bpm = 72.0f, .tone = 1500.0f, .send = 0.5f, .level = 0.9f, .brush = 1,
+    .kick = "x..-....x..-....", .snare = "....-.......-..."};
+/* Wonder 2: the double-time break, here quiet and far off under the whistle */
+static const beat_t BEAT_BLUESTEM = {.bpm = 168.0f, .tone = 2400.0f, .send = 0.25f, .level = 0.75f,
+    .kick = "x.x.......xx....", .snare = "....x..-.x..x..-", .hat = "x.x.x.x.x.x.x.x."};
+/* Is This and Yes again, under snow: almost nothing gets through */
+static const beat_t BEAT_SNOWFALL = {.bpm = 64.0f, .tone = 900.0f, .send = 0.55f, .level = 0.9f, .brush = 1,
+    .kick = "x.......-.......", .snare = "....-.......o..."};
+/* In Another Way: late-90s dance music, scattered, here soft */
+static const beat_t BEAT_TOWER = {.bpm = 104.0f, .tone = 5000.0f, .send = 0.25f, .level = 0.8f,
+    .kick = "x...x...x...x...", .snare = "....x.......x...", .hat = "-.....-.-.....-.",
+    .open = "..o...o...o...o.", .rim = "...-..-....-.-.."};
+
 static const patch_t PATCHES[] = {
     /* Red Door: a fire pit at night, everything washed red from the door behind it. The main glide chord bed: three
      * detuned saws bent all the time, heard mostly through the reverse reverb. */
@@ -14,7 +54,8 @@ static const patch_t PATCHES[] = {
      .att = 0.12f, .dec = 1.8f, .sus = 0.82f, .rel = 1.4f,
      .arm_cents = 85.0f, .drift_cents = 9.0f, .arm_rate = 1.1f,
      .swell_lo = 0.14f, .swell_hi = 1.35f, .wet_lo = 0.45f, .wet_hi = 1.0f, .diffuse = 0.85f,
-     .tape = 0.45f, .level = 1.0f, .knob = {0.55f, 0.55f, 0.45f, 0.82f}},
+     .tape = 0.45f, .level = 1.0f, .knob = {0.55f, 0.55f, 0.45f, 0.82f},
+     .chord = CH_OPEN, .beat = &BEAT_RED_DOOR},
     /* Maple: the sun through a red leaf, late. A soft reed organ that sways slowly, the street's warmth on tape. */
     {.name = "MAPLE", .photo = 1, .wave = WAVE_PULSE, .oscs = 2, .detune = 6.0f, .pw = 0.5f, .sub = 0.25f,
      .cut_lo = 500.0f, .cut_hi = 4200.0f, .res = 0.08f, .fenv = 0.2f, .fenv_decay = 1.5f,
@@ -22,14 +63,16 @@ static const patch_t PATCHES[] = {
      .arm_cents = 22.0f, .drift_cents = 6.0f, .arm_rate = 0.45f,
      .trem_l = 0.9f, .trem_r = 1.13f, .trem_depth = 0.22f,
      .swell_lo = 0.2f, .swell_hi = 1.2f, .wet_lo = 0.3f, .wet_hi = 0.9f, .diffuse = 0.7f,
-     .tape = 0.75f, .level = 1.05f, .knob = {0.3f, 0.45f, 0.4f, 0.55f}},
+     .tape = 0.75f, .level = 1.05f, .knob = {0.3f, 0.45f, 0.4f, 0.55f},
+     .chord = CH_ORGAN, .beat = &BEAT_MAPLE},
     /* Dahlia: pink petals open in full sun. Bright fuzz chords, bent hard, the wash behind them rather than over. */
     {.name = "DAHLIA", .photo = 2, .wave = WAVE_SAW, .oscs = 3, .detune = 24.0f, .sub = 0.1f,
      .cut_lo = 1500.0f, .cut_hi = 11000.0f, .res = 0.22f, .fenv = 0.4f, .fenv_decay = 0.5f,
      .att = 0.01f, .dec = 1.2f, .sus = 0.85f, .rel = 0.7f,
      .arm_cents = 70.0f, .drift_cents = 10.0f, .arm_rate = 1.6f,
      .swell_lo = 0.1f, .swell_hi = 0.8f, .wet_lo = 0.15f, .wet_hi = 0.7f, .diffuse = 0.6f,
-     .tape = 1.0f, .level = 0.85f, .knob = {0.5f, 0.35f, 0.7f, 0.35f}},
+     .tape = 1.0f, .level = 0.85f, .knob = {0.5f, 0.35f, 0.7f, 0.35f},
+     .chord = CH_POWER, .beat = &BEAT_DAHLIA},
     /* Flame: a flame of small lights hanging in a red room at night. A low chord chopped by a fast tremolo, each
      * side flickering at its own speed, in a long dark space. */
     {.name = "FLAME", .photo = 3, .wave = WAVE_SAW, .oscs = 2, .detune = 12.0f, .octave = -12.0f, .sub = 0.35f,
@@ -38,7 +81,8 @@ static const patch_t PATCHES[] = {
      .arm_cents = 45.0f, .drift_cents = 7.0f, .arm_rate = 0.8f,
      .trem_l = 6.0f, .trem_r = 4.5f, .trem_depth = 0.9f, .trem_square = 1,
      .swell_lo = 0.3f, .swell_hi = 1.45f, .wet_lo = 0.35f, .wet_hi = 0.95f, .diffuse = 0.9f,
-     .tape = 0.5f, .level = 1.1f, .knob = {0.4f, 0.65f, 0.3f, 0.5f}},
+     .tape = 0.5f, .level = 1.1f, .knob = {0.4f, 0.65f, 0.3f, 0.5f},
+     .chord = CH_DARK, .beat = &BEAT_FLAME},
     /* Clematis: a bush of small white stars. A breathy pad, half tone and half air, like a voice under the
      * guitars; each note a cloud. */
     {.name = "CLEMATIS", .photo = 4, .wave = WAVE_TRI, .oscs = 3, .detune = 10.0f, .noise = 0.35f,
@@ -46,7 +90,8 @@ static const patch_t PATCHES[] = {
      .hp = 160.0f, .att = 0.45f, .dec = 2.4f, .sus = 0.8f, .rel = 2.0f,
      .arm_cents = 35.0f, .drift_cents = 8.0f, .arm_rate = 0.9f,
      .swell_lo = 0.25f, .swell_hi = 1.4f, .wet_lo = 0.5f, .wet_hi = 1.0f, .diffuse = 1.0f,
-     .tape = 0.3f, .level = 1.2f, .knob = {0.35f, 0.6f, 0.5f, 0.75f}},
+     .tape = 0.3f, .level = 1.2f, .knob = {0.35f, 0.6f, 0.5f, 0.75f},
+     .chord = CH_SPREAD, .beat = &BEAT_CLEMATIS},
     /* Whirl: a room swung past the camera, the window's light pulled into loops. A wide chord bent deep and fast,
      * carried round from one side to the other, almost all reverse reverb. */
     {.name = "WHIRL", .photo = 5, .wave = WAVE_SAW, .oscs = 3, .detune = 28.0f, .sub = 0.1f,
@@ -55,7 +100,8 @@ static const patch_t PATCHES[] = {
      .arm_cents = 150.0f, .drift_cents = 14.0f, .arm_rate = 1.8f,
      .trem_l = 0.42f, .trem_depth = 0.75f, .trem_pan = 1,
      .swell_lo = 0.3f, .swell_hi = 1.45f, .wet_lo = 0.6f, .wet_hi = 1.0f, .diffuse = 1.0f,
-     .tape = 0.55f, .level = 1.25f, .knob = {0.7f, 0.65f, 0.5f, 0.8f}},
+     .tape = 0.55f, .level = 1.25f, .knob = {0.7f, 0.65f, 0.5f, 0.8f},
+     .chord = CH_CLUSTER, .beat = &BEAT_WHIRL},
     /* Window: a dark room at night, rain on the glass, the tree outside lit green, a pink flare at the sill. A soft
      * electric piano heard from the bed, its tremolo rocking side to side, the rain ticking on the pane. */
     {.name = "WINDOW", .photo = 6, .wave = WAVE_FM, .oscs = 2, .detune = 6.0f, .fm_ratio = 1.0f,
@@ -65,7 +111,8 @@ static const patch_t PATCHES[] = {
      .arm_cents = 20.0f, .drift_cents = 5.0f, .arm_rate = 0.6f,
      .trem_l = 4.6f, .trem_depth = 0.45f, .trem_pan = 1,
      .swell_lo = 0.15f, .swell_hi = 1.2f, .wet_lo = 0.25f, .wet_hi = 0.85f, .diffuse = 0.7f,
-     .tape = 0.45f, .level = 1.25f, .knob = {0.25f, 0.5f, 0.35f, 0.5f}},
+     .tape = 0.45f, .level = 1.25f, .knob = {0.25f, 0.5f, 0.35f, 0.5f},
+     .chord = CH_SEVENTH, .beat = &BEAT_WINDOW},
     /* Pasture: horses grazing under a big sky, a hill, a tree bent low by the wind. Open fifths, slow and wide,
      * a little wind in the reeds; it hardly bends. */
     {.name = "PASTURE", .photo = 7, .wave = WAVE_SAW, .oscs = 3, .detune = 9.0f, .interval = 7.0f, .sub = 0.2f,
@@ -73,7 +120,8 @@ static const patch_t PATCHES[] = {
      .breath = 0.35f, .att = 0.7f, .dec = 3.0f, .sus = 0.9f, .rel = 2.4f,
      .arm_cents = 18.0f, .drift_cents = 5.0f, .arm_rate = 0.3f,
      .swell_lo = 0.3f, .swell_hi = 1.45f, .wet_lo = 0.35f, .wet_hi = 0.9f, .diffuse = 0.8f,
-     .tape = 0.3f, .level = 1.1f, .knob = {0.3f, 0.6f, 0.5f, 0.55f}},
+     .tape = 0.3f, .level = 1.1f, .knob = {0.3f, 0.6f, 0.5f, 0.55f},
+     .chord = CH_FIFTHS, .beat = &BEAT_PASTURE},
     /* Bluestem: tall prairie grass in the wind, blue sage, a moth. A thin reed whistle, one note at a time like a
      * blade of grass blown between the thumbs, sliding and wavering, the wind through it and wings fluttering. */
     {.name = "BLUESTEM", .photo = 8, .wave = WAVE_PULSE, .oscs = 2, .detune = 7.0f, .pw = 0.14f, .octave = 12.0f,
@@ -83,7 +131,8 @@ static const patch_t PATCHES[] = {
      .arm_cents = 45.0f, .drift_cents = 16.0f, .arm_rate = 1.2f,
      .trem_l = 7.5f, .trem_r = 9.2f, .trem_depth = 0.18f,
      .swell_lo = 0.15f, .swell_hi = 1.2f, .wet_lo = 0.3f, .wet_hi = 0.9f, .diffuse = 0.85f,
-     .tape = 0.25f, .level = 1.55f, .knob = {0.45f, 0.5f, 0.55f, 0.5f}},
+     .tape = 0.25f, .level = 1.55f, .knob = {0.45f, 0.5f, 0.55f, 0.5f},
+     .chord = CH_ARP, .arp_div = 2, .beat = &BEAT_BLUESTEM},
     /* Snowfall: a back yard at night, snow coming down through the porch light onto the grill and the pots. Glass
      * notes, hollow and soft, muffled the way snow muffles everything, each sinking into a long hush. */
     {.name = "SNOWFALL", .photo = 9, .wave = WAVE_FM, .oscs = 3, .detune = 8.0f, .fm_ratio = 2.0f,
@@ -92,7 +141,8 @@ static const patch_t PATCHES[] = {
      .att = 0.02f, .dec = 4.0f, .sus = 0.2f, .rel = 3.0f,
      .arm_cents = 30.0f, .drift_cents = 4.0f, .arm_rate = 0.25f,
      .swell_lo = 0.4f, .swell_hi = 1.45f, .wet_lo = 0.5f, .wet_hi = 1.0f, .diffuse = 1.0f,
-     .tape = 0.15f, .level = 1.15f, .knob = {0.3f, 0.7f, 0.35f, 0.7f}},
+     .tape = 0.15f, .level = 1.15f, .knob = {0.3f, 0.7f, 0.35f, 0.7f},
+     .chord = CH_ICE, .beat = &BEAT_SNOWFALL},
     /* Tower: a tower block lit gold by the last sun, a street lamp just come on below it. A tall chord, octaves
      * stacked over a low sine, that starts dark and glows open after each note as the light does, warm on tape. */
     {.name = "TOWER", .photo = 10, .wave = WAVE_SAW, .oscs = 3, .detune = 11.0f, .interval = 12.0f, .sub = 0.3f,
@@ -100,6 +150,7 @@ static const patch_t PATCHES[] = {
      .att = 0.3f, .dec = 2.5f, .sus = 0.9f, .rel = 2.0f,
      .arm_cents = 35.0f, .drift_cents = 7.0f, .arm_rate = 0.6f,
      .swell_lo = 0.2f, .swell_hi = 1.3f, .wet_lo = 0.3f, .wet_hi = 0.9f, .diffuse = 0.75f,
-     .tape = 0.65f, .level = 1.2f, .knob = {0.35f, 0.5f, 0.55f, 0.5f}},
+     .tape = 0.65f, .level = 1.2f, .knob = {0.35f, 0.5f, 0.55f, 0.5f},
+     .chord = CH_TALL, .beat = &BEAT_TOWER},
 };
 #define NPATCH ((int)(sizeof PATCHES / sizeof PATCHES[0]))

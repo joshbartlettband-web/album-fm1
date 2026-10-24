@@ -9,6 +9,10 @@ time they ring, heard through a reverse reverb.
   One photo, one patch, the sound drawn from the photo. Five earlier patches that shared RED DOOR's photo are on
   the shelf (`album/shelf/`)
 - Four knobs on every patch: Glide, Swell, Tone, Blur, each acting on the sound and the photo
+- Chord mode (ARP): every key plays a chord, the black keys too, in any key (SELECT); chords drawn from My Bloody
+  Valentine's records and voiced differently by every patch
+- A beat for every patch (SEQ), soft and muffled, partly into the reverse reverb; tempo on ALGORITHM; two linked
+  FM-1s keep time together over MIDI clock
 - Both of the FM-1's cores: half of the voices and the reverb on the second, with a fall back to one core
 - Two FM-1s linked over Bluetooth MIDI play as one
 - The manual: [album/docs/MANUAL.md](album/docs/MANUAL.md)
