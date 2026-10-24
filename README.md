@@ -4,7 +4,8 @@ A series of firmwares for the M-VAVE FM-1, one per record: a few deep sounds and
 each sound moving its photo as it plays. **Album 01** follows one record: chords bent the whole
 time they ring, heard through a reverse reverb.
 
-- Nine patches so far, up to twelve: RED DOOR, MAPLE, DAHLIA, FLAME, CLEMATIS, WHIRL, WINDOW, PASTURE, BLUESTEM.
+- Eleven patches so far, up to twelve: RED DOOR, MAPLE, DAHLIA, FLAME, CLEMATIS, WHIRL, WINDOW, PASTURE, BLUESTEM,
+  SNOWFALL, TOWER.
   One photo, one patch, the sound drawn from the photo. Five earlier patches that shared RED DOOR's photo are on
   the shelf (`album/shelf/`)
 - Four knobs on every patch: Glide, Swell, Tone, Blur, each acting on the sound and the photo

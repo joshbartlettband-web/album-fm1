@@ -75,6 +75,8 @@ Each patch has its own photo, and its sound comes from that photo.
 | 7 | WINDOW | A dark room, rain on the glass, a tree lit outside | A soft electric piano rocking side to side, rain ticking on the pane |
 | 8 | PASTURE | Horses under a big sky | Open fifths, slow and wide, a little wind; it hardly bends |
 | 9 | BLUESTEM | Tall prairie grass, blue sage, a moth | One note at a time: a thin reed whistle, like a blade of grass blown between the thumbs |
+| 10 | SNOWFALL | A back yard at night, snow coming down | Soft, hollow glass notes, muffled, each sinking into a long hush |
+| 11 | TOWER | A tower block lit gold by the last sun | A tall chord, octaves stacked, that starts dark and glows open after each note |
 
 ## 5. Two FM-1s as one
 

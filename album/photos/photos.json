@@ -25,5 +25,11 @@
    "vivid": 1.15, "dither": false},
   {"file": "09-bluestem.jpg", "crop": [150, 0, 720],
    "keep": ["#4A8CDC", "#9CAEF0", "#F6E2A8", "#8E5A44"],
+   "vivid": 1.2, "dither": false},
+  {"file": "10-snowfall.jpg", "crop": [0, 120, 720],
+   "keep": ["#F2EEEA", "#E8902E", "#2C7A76", "#1C5C74", "#5A2C20", "#141418"],
+   "vivid": 1.6, "dither": false},
+  {"file": "11-tower.jpg", "crop": [0, 200, 720],
+   "keep": ["#2E7CC8", "#A8D0EC", "#F2B26E", "#FFE8A0", "#141C28"],
    "vivid": 1.2, "dither": false}
 ]

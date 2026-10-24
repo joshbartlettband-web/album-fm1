@@ -192,4 +192,46 @@ wait 1400
 key w9 up
 wait 2200
 wavstop
-expect patch 8
+turn PRESET 1
+wait 120
+wav snowfall.wav
+key w6 down 96
+key w8 down 96
+key w10 down 96
+wait 1600
+shot snowfall.png
+wait 600
+key w6 up
+key w8 up
+key w10 up
+key w4 down 96
+key w6 down 96
+key w8 down 96
+wait 2000
+key w4 up
+key w6 up
+key w8 up
+wait 2200
+wavstop
+turn PRESET 1
+wait 120
+wav tower.wav
+key w6 down 96
+key w8 down 96
+key w10 down 96
+wait 1600
+shot tower.png
+wait 600
+key w6 up
+key w8 up
+key w10 up
+key w4 down 96
+key w6 down 96
+key w8 down 96
+wait 2000
+key w4 up
+key w6 up
+key w8 up
+wait 2200
+wavstop
+expect patch 10
