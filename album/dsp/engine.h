@@ -31,6 +31,7 @@ typedef struct {
     uint8_t mono;                        /* 1: one voice, sliding from note to note */
     float detune;                        /* cents between the outer oscillators */
     float octave;                        /* semitones added to every note */
+    float interval;                      /* semitones added to the third oscillator (7: an open fifth), 0: none */
     float sub;                           /* a sine an octave down, 0..1 */
     float crackle;                       /* sparse noise clicks while a note sounds, 0..1 */
     float noise;                         /* air: white noise beside the oscillators, through the filter, 0..1 */
@@ -48,6 +49,7 @@ typedef struct {
     float slide;                         /* mono: the slide between notes (s) */
     float trem_l, trem_r, trem_depth;    /* tremolo: its two speeds (Hz), left and right, and depth 0..1 */
     uint8_t trem_square;                 /* 1: the tremolo chops (a square, its edges softened) instead of swaying */
+    uint8_t trem_pan;                    /* 1: the tremolo pans the whole sound, reverb too: right opposite left, at trem_l */
     float swell_lo, swell_hi;            /* the reverse reverb's window (s) at Swell 0 and Swell 1 */
     float wet_lo, wet_hi;                /* the reverb's share at Blur 0 and Blur 1 (1: no dry at all) */
     float diffuse;                       /* how much Blur smears the reverb, 0..1 */

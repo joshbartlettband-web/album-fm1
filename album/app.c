@@ -27,7 +27,7 @@ static inline float sine_wave(float x) { return fm_sinf(x * FM_TWO_PI); }
 #define MAX_PATCH 16u
 
 /* --------------------------------------------------------------- settings --- */
-#define SET_MAGIC 0x414C4232u            /* "ALB2": four patches, one a photo (ALB1 had ten) */
+#define SET_MAGIC 0x414C4233u            /* "ALB3": nine patches, one a photo (earlier layouts start fresh) */
 typedef struct {
     uint32_t magic;
     uint8_t patch;

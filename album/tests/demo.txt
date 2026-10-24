@@ -2,6 +2,27 @@
 wait 800
 shot boot.png
 master 3400
+wav red-door.wav
+key w6 down 96
+key w8 down 96
+key w10 down 96
+wait 1600
+shot red-door.png
+wait 600
+key w6 up
+key w8 up
+key w10 up
+key w4 down 96
+key w6 down 96
+key w8 down 96
+wait 2000
+key w4 up
+key w6 up
+key w8 up
+wait 2200
+wavstop
+turn PRESET 1
+wait 120
 wav maple.wav
 key w6 down 96
 key w8 down 96
@@ -44,12 +65,12 @@ wait 2200
 wavstop
 turn PRESET 1
 wait 120
-wav red-hall.wav
+wav flame.wav
 key w6 down 96
 key w8 down 96
 key w10 down 96
 wait 1600
-shot red-hall.png
+shot flame.png
 wait 600
 key w6 up
 key w8 up
@@ -84,4 +105,91 @@ key w6 up
 key w8 up
 wait 2200
 wavstop
-expect patch 3
+turn PRESET 1
+wait 120
+wav whirl.wav
+key w6 down 96
+key w8 down 96
+key w10 down 96
+wait 1600
+shot whirl.png
+wait 600
+key w6 up
+key w8 up
+key w10 up
+key w4 down 96
+key w6 down 96
+key w8 down 96
+wait 2000
+key w4 up
+key w6 up
+key w8 up
+wait 2200
+wavstop
+turn PRESET 1
+wait 120
+wav window.wav
+key w6 down 96
+key w8 down 96
+key w10 down 96
+wait 1600
+shot window.png
+wait 600
+key w6 up
+key w8 up
+key w10 up
+key w4 down 96
+key w6 down 96
+key w8 down 96
+wait 2000
+key w4 up
+key w6 up
+key w8 up
+wait 2200
+wavstop
+turn PRESET 1
+wait 120
+wav pasture.wav
+key w6 down 96
+key w8 down 96
+key w10 down 96
+wait 1600
+shot pasture.png
+wait 600
+key w6 up
+key w8 up
+key w10 up
+key w4 down 96
+key w6 down 96
+key w8 down 96
+wait 2000
+key w4 up
+key w6 up
+key w8 up
+wait 2200
+wavstop
+turn PRESET 1
+wait 120
+wav bluestem.wav
+key w6 down 96
+wait 600
+key w8 down 96
+key w6 up
+wait 500
+key w9 down 96
+key w8 up
+wait 700
+shot bluestem.png
+key w12 down 96
+key w9 up
+wait 900
+key w10 down 96
+key w12 up
+wait 600
+key w9 down 96
+key w10 up
+wait 1400
+key w9 up
+wait 2200
+wavstop
+expect patch 8
