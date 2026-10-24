@@ -1,8 +1,8 @@
 # Album
 
 A series of firmwares for the M-VAVE FM-1, one per record: a few deep sounds and the photographs they came from,
-each sound moving its photo as it plays. **Album 01** evokes *m b v* (My Bloody Valentine, 2013): chords bent the
-whole time they ring, heard through a reverse reverb.
+each sound moving its photo as it plays. **Album 01** follows one record: chords bent the whole
+time they ring, heard through a reverse reverb.
 
 - Six patches so far (RED DOOR, EMBER, LANTERN, SHIVER, BLUR, FLARE), up to twelve, each with its own photo
 - Four knobs on every patch: Glide, Swell, Tone, Blur, each acting on the sound and the photo
@@ -41,5 +41,4 @@ GitHub and publishes the install page.
 
 MIT (`LICENSE`), except `album/cpu1/entry.S`, whose four instructions come from felucca-bsp and stay MPL-2.0. Built on
 fm1-base by Charles Vestal and felucca-bsp by Leo Kuroshita, Hügelton Instruments (both MPL-2.0, in `base/`). The Bluetooth build links JieLi's AC79 SDK libraries (Apache-2.0, not in this repository). The photos are
-Hausway's. M-VAVE and FM-1 are trademarks of their owners; Album is not affiliated with M-VAVE or with
-My Bloody Valentine.
+Hausway's. M-VAVE and FM-1 are trademarks of their owners; Album is not affiliated with M-VAVE.

@@ -1,8 +1,8 @@
-# ALBUM 01: m b v
+# ALBUM 01
 
 Album is a series of firmwares for the M-VAVE FM-1, one per record. Each edition is a few deep sounds and the
-photographs they came from. Edition 01 evokes m b v, My Bloody Valentine's 2013 album: chords bent the whole time
-they ring, heard through a reverse reverb, the way glide guitar sounds.
+photographs they came from. Edition 01 follows one record: chords bent the whole time they ring, heard through a
+reverse reverb.
 
 ![Red Door playing: the fire pit photo in reds and violet, wavering sideways with the sound](img/screen-playing.png "ALBUM on the FM-1's screen")
 
@@ -15,4 +15,4 @@ Version {{VERSION}}. Installing is at your own risk; the installer can put M-VAV
 - [Source](https://github.com/joshbartlettband-web/album-fm1): MIT. Built on fm1-base (Charles Vestal) and felucca-bsp
   (Leo Kuroshita, Hügelton Instruments).
 
-M-VAVE and FM-1 are trademarks of their owners. Album is not affiliated with M-VAVE or with My Bloody Valentine.
+M-VAVE and FM-1 are trademarks of their owners. Album is not affiliated with M-VAVE.

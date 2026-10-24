@@ -1,8 +1,7 @@
-# ALBUM 01: m b v
+# ALBUM 01
 
 Album is a series of firmwares for the M-VAVE FM-1, one per record. Each edition is a few deep sounds and the
-photographs they came from, and each sound moves its photo as you play. Edition 01 evokes m b v, My Bloody
-Valentine's 2013 album: chords bent while they ring (glide guitar), heard mostly through a reverse reverb.
+photographs they came from, and each sound moves its photo as you play. Edition 01 follows one record: chords bent while they ring (glide guitar), heard mostly through a reverse reverb.
 
 ![Red Door at rest: the fire pit photo, the patch's name at the top](img/screen-patch.png "A patch's name, a moment after choosing it")
 

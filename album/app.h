@@ -1,13 +1,13 @@
 /* SPDX-License-Identifier: MIT
  * Copyright (c) 2026 Hausway */
-/* Album 01, m b v: an fm1-base firmware. This header is the app's half of the contract with the platform
+/* Album 01: an fm1-base firmware. This header is the app's half of the contract with the platform
  * (base/device/unity.c, base/host/plat_host.c). */
 #pragma once
 #include <stdint.h>
 #include "plat.h"
 
 #define APP_NAME "ALBUM"
-#define APP_TAGLINE "01  M B V"
+#define APP_TAGLINE "01"
 #define APP_SPLASH_RGB RGB(232, 40, 52)
 #define APP_PALETTE 3u                   /* gfx.c's RED theme for the few words on screen */
 #define APP_BLOCK 256u                   /* frames per audio block: 5.8 ms at 44.1 kHz */
