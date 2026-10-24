@@ -4,7 +4,8 @@ A series of firmwares for the M-VAVE FM-1, one per record: a few deep sounds and
 each sound moving its photo as it plays. **Album 01** follows one record: chords bent the whole
 time they ring, heard through a reverse reverb.
 
-- Six patches so far (RED DOOR, EMBER, LANTERN, SHIVER, BLUR, FLARE), up to twelve, each with its own photo
+- Ten patches so far (RED DOOR, EMBER, LANTERN, SHIVER, BLUR, FLARE from one photo; MAPLE, DAHLIA, RED HALL,
+  CLEMATIS with their own), up to twelve
 - Four knobs on every patch: Glide, Swell, Tone, Blur, each acting on the sound and the photo
 - Both of the FM-1's cores: half of the voices and the reverb on the second, with a fall back to one core
 - Two FM-1s linked over Bluetooth MIDI play as one

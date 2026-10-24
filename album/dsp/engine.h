@@ -33,6 +33,7 @@ typedef struct {
     float octave;                        /* semitones added to every note */
     float sub;                           /* a sine an octave down, 0..1 */
     float crackle;                       /* sparse noise clicks while a note sounds, 0..1 */
+    float noise;                         /* air: white noise beside the oscillators, through the filter, 0..1 */
     float pw;                            /* WAVE_PULSE: pulse width */
     float fm_ratio, fm_index, fm_decay;  /* WAVE_FM: modulator ratio, its index, and how fast the index falls (s) */
     float cut_lo, cut_hi;                /* low-pass cutoff (Hz) at Tone 0 and Tone 1 */
@@ -46,6 +47,7 @@ typedef struct {
     float arm_rate;                      /* how often the arm moves (moves a second) */
     float slide;                         /* mono: the slide between notes (s) */
     float trem_l, trem_r, trem_depth;    /* tremolo: its two speeds (Hz), left and right, and depth 0..1 */
+    uint8_t trem_square;                 /* 1: the tremolo chops (a square, its edges softened) instead of swaying */
     float swell_lo, swell_hi;            /* the reverse reverb's window (s) at Swell 0 and Swell 1 */
     float wet_lo, wet_hi;                /* the reverb's share at Blur 0 and Blur 1 (1: no dry at all) */
     float diffuse;                       /* how much Blur smears the reverb, 0..1 */

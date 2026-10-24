@@ -541,6 +541,10 @@ static void render_voice(voice_t *v, float *o, uint32_t n)
                 sl *= 0.625f;
                 sr *= 0.625f;
             }
+            if (p->noise > 0.0f) {       /* air, a little different on each side */
+                sl += (rndf(&v->rng) - 0.5f) * 2.0f * p->noise;
+                sr += (rndf(&v->rng) - 0.5f) * 2.0f * p->noise;
+            }
             if (p->sub > 0.0f) {
                 float u = sine01(v->sub_ph) * p->sub;
                 v->sub_ph += sub_dt;
@@ -755,8 +759,13 @@ void eng_end(int32_t *lr, uint32_t n, float gain)
         float ol, or_, d, fr, w0l, w0r, w1l, w1r;
         uint32_t di, a0, a1;
         if (td > 0.0f) {                 /* two amps, two speeds */
-            l *= 1.0f - td * 0.5f * (1.0f + sine01(trem_l_ph));
-            r *= 1.0f - td * 0.5f * (1.0f + sine01(trem_r_ph));
+            float ml = sine01(trem_l_ph), mr = sine01(trem_r_ph);
+            if (p->trem_square) {        /* a chop: the sine pushed hard into a soft square */
+                ml = soft(ml * 6.0f);
+                mr = soft(mr * 6.0f);
+            }
+            l *= 1.0f - td * 0.5f * (1.0f + ml);
+            r *= 1.0f - td * 0.5f * (1.0f + mr);
             trem_l_ph = wrap01(trem_l_ph + tl);
             trem_r_ph = wrap01(trem_r_ph + tr);
         }

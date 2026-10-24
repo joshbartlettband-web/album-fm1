@@ -129,4 +129,88 @@ key w6 up
 key w8 up
 wait 2200
 wavstop
-expect patch 5
+turn PRESET 1
+wait 120
+wav maple.wav
+key w6 down 96
+key w8 down 96
+key w10 down 96
+wait 1600
+shot maple.png
+wait 600
+key w6 up
+key w8 up
+key w10 up
+key w4 down 96
+key w6 down 96
+key w8 down 96
+wait 2000
+key w4 up
+key w6 up
+key w8 up
+wait 2200
+wavstop
+turn PRESET 1
+wait 120
+wav dahlia.wav
+key w6 down 96
+key w8 down 96
+key w10 down 96
+wait 1600
+shot dahlia.png
+wait 600
+key w6 up
+key w8 up
+key w10 up
+key w4 down 96
+key w6 down 96
+key w8 down 96
+wait 2000
+key w4 up
+key w6 up
+key w8 up
+wait 2200
+wavstop
+turn PRESET 1
+wait 120
+wav red-hall.wav
+key w6 down 96
+key w8 down 96
+key w10 down 96
+wait 1600
+shot red-hall.png
+wait 600
+key w6 up
+key w8 up
+key w10 up
+key w4 down 96
+key w6 down 96
+key w8 down 96
+wait 2000
+key w4 up
+key w6 up
+key w8 up
+wait 2200
+wavstop
+turn PRESET 1
+wait 120
+wav clematis.wav
+key w6 down 96
+key w8 down 96
+key w10 down 96
+wait 1600
+shot clematis.png
+wait 600
+key w6 up
+key w8 up
+key w10 up
+key w4 down 96
+key w6 down 96
+key w8 down 96
+wait 2000
+key w4 up
+key w6 up
+key w8 up
+wait 2200
+wavstop
+expect patch 9
