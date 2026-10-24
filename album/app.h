@@ -23,6 +23,8 @@ int album_ble_off(void);
 #define APP_CSTART
 void app_cstart(void);
 #define APP_FAULT
+#define APP_SPLASH                       /* the first screen: the boot photo and ALBUM 01 (the intro's first frame) */
+void app_splash(void);
 #endif
 #define APP_OVERLOAD                     /* the render near its limit: fewer voices */
 void app_overload(void);

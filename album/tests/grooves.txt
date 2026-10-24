@@ -19,7 +19,8 @@ key w0 up
 key w2 down 100
 wait 2600
 key w2 up
-wait 900
+wait 8600
+# (the intro: the boot photo melting into the first patch, ALBUM 01 fading)
 wavstop
 turn PRESET 1
 wait 60

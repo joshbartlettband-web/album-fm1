@@ -11,7 +11,8 @@ The photos and their settings are in photos/photos.json (relative to the app):
     "crop": [x, y, size],            optional: the square to use, in the source's pixels (default: centred, full height)
     "keep": ["#F08040", ...],        colours the palette must hold (a leaf's red that averaging would lose)
     "vivid": 1.25,                   colour saturation before reducing (1 = as shot)
-    "dither": false}]                Floyd-Steinberg dithering (default false: the flat, posterized look)
+    "dither": false,                 Floyd-Steinberg dithering (default false: the flat, posterized look)
+    "boot": true}]                   optional, one photo at most: the one the FM-1 starts on (PHOTO_BOOT), no patch's
 
 The header holds, per photo: the palette (16 x RGB888), the bands' offsets and the compressed bands. The firmware
 unpacks one band (1920 bytes) at a time while it draws (album/photo.c)."""
@@ -147,6 +148,11 @@ def main():
     out.append("static const photo_t PHOTOS[PHOTO_COUNT] = {")
     out += table
     out.append("};")
+    boot = [n for n, spec in enumerate(specs) if spec.get("boot")]
+    if len(boot) > 1:
+        raise SystemExit("photos: one boot photo at most")
+    if boot:
+        out.append(f"#define PHOTO_BOOT {boot[0]}u          /* the photo the FM-1 starts on (\"boot\": true), no patch's */")
     Path(a.out).parent.mkdir(parents=True, exist_ok=True)
     Path(a.out).write_text("\n".join(out) + "\n")
     print(f"photos: {len(specs)} photo(s), {total} bytes in all", file=sys.stderr)

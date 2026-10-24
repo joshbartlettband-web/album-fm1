@@ -31,5 +31,8 @@
    "vivid": 1.6, "dither": false},
   {"file": "11-tower.jpg", "crop": [0, 200, 720],
    "keep": ["#2E7CC8", "#A8D0EC", "#F2B26E", "#FFE8A0", "#141C28"],
+   "vivid": 1.2, "dither": false},
+  {"file": "12-boot.jpg", "crop": [0, 0, 720], "boot": true,
+   "keep": ["#F8F0FA", "#E040B0", "#2A1428"],
    "vivid": 1.2, "dither": false}
 ]
