@@ -1,0 +1,115 @@
+# Album: chord mode, its key, the beat and its clock (album_host chords.txt OUTDIR)
+wait 800
+expect chords 0
+expect beat 0
+# ARP: chord mode on, in C. C4 on RED DOOR: C G D E, and the tonic ringing over it as an open string
+tap ARP
+wait 60
+expect chords 1
+expect key 0
+out
+key w4 down 100
+wait 60
+expect notes 5
+expect_out USB 90 3C 64
+expect_out USB 90 43 64
+expect_out USB 90 4A 64
+shot chord.png
+key w4 up
+wait 60
+expect notes 0
+# a black key plays too: B flat 3, the borrowed flat seventh
+listen
+key b2 down 100
+wait 60
+expect notes 4
+said Bb
+key b2 up
+wait 30
+# B3 is G over its third, not a diminished chord
+key w3 down 100
+wait 60
+said G/B
+key w3 up
+wait 30
+# two chords at once share their common tones: C and its open-string C ring through to F
+key w4 down 100
+key w7 down 100
+wait 60
+expect notes 9
+key w4 up
+key w7 up
+wait 30
+# SELECT: the key up a tone, to D; D4 is now the I chord
+turn SELECT 2
+wait 60
+expect key 2
+listen
+key w5 down 100
+wait 60
+said D
+key w5 up
+wait 30
+# ARP held and a key pressed: that key is the key (G), and chord mode stays on
+press ARP
+key w8 down 100
+wait 30
+release ARP
+key w8 up
+wait 60
+expect key 7
+expect chords 1
+# ARP: chord mode off, single notes again
+tap ARP
+wait 60
+expect chords 0
+key w4 down 100
+wait 60
+expect notes 1
+key w4 up
+wait 30
+# SEQ: RED DOOR's beat at 86, a clock start sent; about six sixteenths a second
+out
+tap SEQ
+wait 1000
+expect beat 1
+expect tempo 86
+expect step >4
+expect step <8
+expect_out USB FA 00 00
+shot beat.png
+# ALGORITHM: the tempo; SEQ held and ALGORITHM turned: the level, the beat still going
+turn ALGO 4
+wait 60
+expect tempo 90
+press SEQ
+turn ALGO -3
+release SEQ
+wait 60
+expect beat 1
+# SEQ again: stopped, a clock stop sent
+out
+tap SEQ
+wait 60
+expect beat 0
+expect_out USB FC 00 00
+# a linked FM-1's clock: its start, then 48 ticks are eight sixteenths, then its stop
+midi FA 00 00
+clock 48 21
+wait 30
+expect beat 1
+expect step >5
+expect step <10
+midi FC 00 00
+wait 30
+expect beat 0
+# saved and back after a restart: the key, chord mode, the tempo
+tap ARP
+wait 30
+tap SAVE
+wait 60
+reboot
+wait 800
+expect chords 1
+expect key 7
+expect tempo 90

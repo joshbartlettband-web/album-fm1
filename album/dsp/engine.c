@@ -62,7 +62,7 @@ static inline float coef_t(float seconds, float rate)   /* one-pole coefficient:
 
 /* ------------------------------------------------------------- the queue --- */
 /* two single-producer queues (the main loop's, the render's MIDI), one consumer (eng_begin) */
-enum { EV_ON, EV_OFF, EV_SUS, EV_PATCH, EV_PANIC };
+enum { EV_ON, EV_OFF, EV_SUS, EV_PATCH, EV_PANIC, EV_ARP };
 typedef struct { uint8_t type, a, b, pad; } ev_t;
 #define QN 64u
 typedef struct { ev_t ev[QN]; volatile uint32_t w, r; } queue_t;
@@ -85,6 +85,7 @@ void eng_note_off(int note) { q_push(&q_ui, EV_OFF, note, 0); }
 void eng_sustain(int on) { q_push(&q_ui, EV_SUS, on != 0, 0); }
 void eng_patch(int p) { q_push(&q_ui, EV_PATCH, p, 0); }
 void eng_panic(void) { q_push(&q_ui, EV_PANIC, 0, 0); }
+void eng_arp_note(int note, int on) { q_push(&q_ui, EV_ARP, note, on != 0); }
 void eng_note_on_isr(int note, int vel) { q_push(&q_isr, EV_ON, note, vel); }
 void eng_note_off_isr(int note) { q_push(&q_isr, EV_OFF, note, 0); }
 void eng_sustain_isr(int on) { q_push(&q_isr, EV_SUS, on != 0, 0); }
@@ -210,14 +211,24 @@ static voice_t *voice_for(int note)
                 return &V[k];
         }
     }
-    for (i = 0; i < ENG_VOICES; i++)     /* else the oldest released, else the oldest */
-        if (V[i].stage == ST_REL && V[i].age < best_age) {
-            best = i;
-            best_age = V[i].age;
-        }
-    if (best_age != 0xFFFFFFFFu)
-        return &V[best];
-    for (i = 0; i < ENG_VOICES; i++)
+    {                                    /* else the quietest letting go (its tail is mostly the reverb's by now) */
+        float quiet = 2.0f;
+        for (i = 0; i < ENG_VOICES; i++)
+            if (V[i].stage == ST_REL && V[i].env < quiet) {
+                best = i;
+                quiet = V[i].env;
+            }
+        if (quiet < 2.0f)
+            return &V[best];
+        for (i = 0; i < ENG_VOICES; i++)   /* else the quietest that only HOLD keeps */
+            if (V[i].held && V[i].env < quiet) {
+                best = i;
+                quiet = V[i].env;
+            }
+        if (quiet < 2.0f)
+            return &V[best];
+    }
+    for (i = 0; i < ENG_VOICES; i++)     /* else, every voice under a finger: the oldest */
         if (V[i].stage != ST_OFF && V[i].age < best_age) {
             best = i;
             best_age = V[i].age;
@@ -291,14 +302,18 @@ static void note_off(int note)
         }
 }
 
+static void arp_drop_held(void);
+
 static void set_sustain(int on)
 {
     uint32_t i;
     sustain_on = (uint8_t)(on != 0);
-    if (!sustain_on)
+    if (!sustain_on) {
         for (i = 0; i < ENG_VOICES; i++)
             if (V[i].held)
                 voice_release(&V[i]);
+        arp_drop_held();
+    }
 }
 
 static void all_quick(void)              /* everything out within ~30 ms, reverb tails kept */
@@ -312,6 +327,112 @@ static void all_quick(void)              /* everything out within ~30 ms, reverb
             V[i].quick = 1;
         }
     mono_n = 0;
+}
+
+/* --------------------------------------------------------- the arpeggio --- */
+/* a mono patch in chord mode walks the chord's notes up and down, one each arp_div sixteenths of the clock, sliding
+ * from one to the next with the filter's envelope restarted on each (a small accent, no new attack) */
+static struct {
+    int8_t note[12];
+    uint8_t sus[12];                     /* let go while HOLD was on: dropped when it goes off */
+    uint32_t n, idx;
+    int dir;
+    uint8_t vel, playing, due;
+} A;
+
+static void arp_note(int note, int on, int vel)
+{
+    uint32_t i, j;
+    for (i = 0; i < A.n && A.note[i] < note; i++)
+        ;
+    if (on) {
+        if (i < A.n && A.note[i] == note) {
+            A.sus[i] = 0;
+            return;
+        }
+        if (A.n == 12u)
+            return;
+        for (j = A.n; j > i; j--) {
+            A.note[j] = A.note[j - 1u];
+            A.sus[j] = A.sus[j - 1u];
+        }
+        A.note[i] = (int8_t)note;
+        A.sus[i] = 0;
+        A.vel = (uint8_t)vel;
+        if (A.n++ == 0u) {               /* the first note: now, and the walk starts at the bottom */
+            A.idx = 0;
+            A.dir = 1;
+            A.due = 1;
+        }
+        return;
+    }
+    if (i == A.n || A.note[i] != note)
+        return;
+    if (sustain_on) {
+        A.sus[i] = 1;
+        return;
+    }
+    for (j = i; j + 1u < A.n; j++) {
+        A.note[j] = A.note[j + 1u];
+        A.sus[j] = A.sus[j + 1u];
+    }
+    A.n--;
+    if (A.idx >= A.n)
+        A.idx = A.n ? A.n - 1u : 0u;
+}
+
+static void arp_drop_held(void)
+{
+    uint32_t i = 0;
+    while (i < A.n)
+        if (A.sus[i]) {
+            uint32_t j;
+            for (j = i; j + 1u < A.n; j++) {
+                A.note[j] = A.note[j + 1u];
+                A.sus[j] = A.sus[j + 1u];
+            }
+            A.n--;
+        } else {
+            i++;
+        }
+    if (A.idx >= A.n)
+        A.idx = A.n ? A.n - 1u : 0u;
+}
+
+static void arp_play(void)               /* eng_begin: the next note, or let go when the chord's gone */
+{
+    voice_t *m = &V[0];
+    if (!B.p->mono || A.n == 0u) {
+        if (A.playing && (A.n == 0u || !B.p->mono)) {
+            if (B.p->mono)
+                voice_release(m);
+            A.playing = 0;
+        }
+        A.due = 0;
+        return;
+    }
+    if (!A.due)
+        return;
+    A.due = 0;
+    {
+        int note = A.note[A.idx];
+        float v = (float)A.vel / 127.0f;
+        if (!A.playing || m->stage == ST_OFF || m->stage == ST_REL) {
+            voice_start(m, note, v, m->stage == ST_OFF);
+            A.playing = 1;
+        } else {
+            m->note = (int16_t)note;
+            m->target = (float)note;
+            m->vel = v;
+            m->fenv = 1.0f;
+            m->fm_env = 1.0f;
+        }
+        if (A.n > 1u) {                  /* up, then down, the ends not repeated */
+            if ((A.dir > 0 && A.idx + 1u >= A.n) || (A.dir < 0 && A.idx == 0u))
+                A.dir = -A.dir;
+            A.idx = (uint32_t)((int)A.idx + A.dir);
+        }
+    }
 }
 
 /* --------------------------------------------------------------- the arm --- */
@@ -607,6 +728,244 @@ static void render_half(uint32_t lo, float *o)
             render_voice(&V[i], o, B.n);
 }
 
+/* ------------------------------------------------------------- the clock --- */
+/* sixteenths at the patch's tempo (the off ones late by its swing), 24 ticks a beat for MIDI clock out; or, while a
+ * clock comes in, a sixteenth each six ticks of it. It runs for the beat, and for an arpeggio with the beat off */
+static volatile int beat_req;            /* the main loop's: 1 start, 2 stop */
+static volatile float tempo_bpm = 90.0f, beat_lv = 0.7f;
+static struct {
+    uint8_t on, run, fired, wait;        /* the beat sounds; the clock runs; this sixteenth's hits are done; waiting
+                                          * for the first tick after a start in */
+    float pos, tpos;                     /* samples into this sixteenth, into this tick */
+    uint32_t step, ticks;
+    uint32_t ext_t;                      /* blocks before a clock in that stopped coming counts as gone */
+    uint32_t ext_n, ext_due;             /* ticks in since the start; sixteenths due from them */
+} C;
+static float pulse;
+
+void eng_beat(int on) { beat_req = on ? 1 : 2; }
+void eng_tempo(float bpm) { tempo_bpm = fm_clampf(bpm, 40.0f, 240.0f); }
+void eng_beat_level(float v) { beat_lv = fm_clampf(v, 0.0f, 1.0f); }
+int eng_beat_on(void) { return C.on; }
+uint32_t eng_ticks(void) { return C.ticks; }
+uint32_t eng_step(void) { return C.step; }
+float eng_pulse(void) { return pulse; }
+int eng_clock_ext(void) { return C.ext_t > 0u; }
+
+static void clock_start(int beat)
+{
+    C.on = (uint8_t)(beat != 0);
+    C.run = 1;
+    C.step = C.ticks = 0;
+    C.pos = C.tpos = 0.0f;
+    C.fired = 0;
+    C.wait = 0;
+    C.ext_n = C.ext_due = 0;
+}
+
+#define EXT_BLOCKS 90u                   /* ~0.5 s */
+void eng_clock_in(int what)
+{
+    if (what == 0xFA || what == 0xFB) {  /* start (or continue): from the next tick, at a bar's start */
+        clock_start(1);
+        C.wait = 1;
+        C.fired = 1;
+        C.ext_t = EXT_BLOCKS;
+    } else if (what == 0xFC) {
+        C.on = 0;
+        C.ext_t = 0;
+    } else if (what == 0xF8 && C.run && C.on) {
+        C.ext_t = EXT_BLOCKS;
+        C.ticks++;
+        if (C.wait) {
+            C.wait = 0;
+            C.fired = 0;                 /* the bar's first sixteenth, now */
+            C.ext_n = 0;
+            C.ext_due++;
+        } else if (++C.ext_n % 6u == 0u) {
+            C.ext_due++;
+        }
+    }
+}
+
+/* ---------------------------------------------------------------- the kit --- */
+/* a small synthesized kit, kept soft: a sine kick with a falling pitch, a snare of two tones and noise (or a brush),
+ * a hat of noise twice differenced (closed or open: one voice, so a closed hat chokes an open one), a low tom, a
+ * rim. Then the whole kit through one low-pass, the patch's muffle */
+static struct {
+    float k_ph, k_env, k_pe, k_cl, k_v;
+    float s_env, s_te, s_att, s_ph1, s_ph2, s_lp, s_v;
+    float h_env, h_dec, h_x1, h_y1, h_v;
+    float t_ph, t_env, t_pe, t_v;
+    float r_env, r_ph, r_v;
+    float lp_l, lp_r;
+    uint32_t rng;
+} D;
+static float dc_kick, dc_kpitch, dc_click, dc_snare, dc_brush, dc_stone, dc_satt, dc_hclosed, dc_hopen, dc_tom,
+    dc_tpitch, dc_rim;
+
+static float hit_of(const char *p, uint32_t s)   /* the step's letter: 0 rest, else its loudness */
+{
+    uint32_t i;
+    if (!p)
+        return 0.0f;
+    for (i = 0; i < s; i++)
+        if (!p[i])
+            return 0.0f;
+    switch (p[s]) {
+    case 'x':
+        return 1.0f;
+    case 'o':
+        return 0.62f;
+    case '-':
+        return 0.32f;
+    default:
+        return 0.0f;
+    }
+}
+
+static void fire(uint32_t step)          /* a sixteenth: the arpeggio's next note, the kit's hits */
+{
+    const patch_t *p = B.p;
+    const beat_t *b = p->beat;
+    uint32_t s = step & 15u, bar = step >> 4;
+    float v;
+    if (p->mono && A.n && p->arp_div && s % p->arp_div == 0u)
+        A.due = 1;
+    if (!C.on || !b)
+        return;
+    if ((v = hit_of(b->kick, s)) > 0.0f) {
+        D.k_env = 1.0f;
+        D.k_pe = 1.0f;
+        D.k_cl = 1.0f;
+        D.k_ph = 0.0f;
+        D.k_v = v;
+        pulse = fm_maxf(pulse, v);
+    }
+    if ((v = hit_of(b->fill && (bar & 3u) == 3u ? b->fill : b->snare, s)) > 0.0f) {
+        D.s_env = 1.0f;
+        D.s_te = 1.0f;
+        D.s_att = b->brush ? 1.0f : 0.0f;
+        D.s_v = v;
+    }
+    if ((v = hit_of(b->hat, s)) > 0.0f) {
+        D.h_env = 1.0f;
+        D.h_dec = dc_hclosed;
+        D.h_v = v;
+    }
+    if ((v = hit_of(b->open, s)) > 0.0f) {
+        D.h_env = 1.0f;
+        D.h_dec = dc_hopen;
+        D.h_v = v * 0.8f;
+    }
+    if ((v = hit_of(b->tom, s)) > 0.0f) {
+        D.t_env = 1.0f;
+        D.t_pe = 1.0f;
+        D.t_v = v;
+    }
+    if ((v = hit_of(b->rim, s)) > 0.0f) {
+        D.r_env = 1.0f;
+        D.r_v = v;
+    }
+}
+
+static void clock_sample(float sps, float swing)   /* one sample of the clock (not following a clock in) */
+{
+    float trig = (C.step & 1u) ? swing * sps : 0.0f;
+    if (!C.fired && C.pos >= trig) {
+        fire(C.step);
+        C.fired = 1;
+    }
+    C.pos += 1.0f;
+    if (C.pos >= sps) {
+        C.pos -= sps;
+        C.step++;
+        C.fired = 0;
+    }
+    C.tpos += 1.0f;
+    if (C.tpos >= sps * (1.0f / 6.0f)) {
+        C.tpos -= sps * (1.0f / 6.0f);
+        C.ticks++;
+    }
+}
+
+static void kit_sample(float lpc, int brush, float *dl, float *dr)
+{
+    float n = rndf(&D.rng) * 2.0f - 1.0f, k = 0.0f, s = 0.0f, h = 0.0f, t = 0.0f, rm = 0.0f, m, l, r;
+    if (D.k_env > 1e-5f) {
+        D.k_ph += (46.0f + 74.0f * D.k_pe) * (1.0f / ENG_FS);
+        if (D.k_ph >= 1.0f)
+            D.k_ph -= 1.0f;
+        k = (sine01(D.k_ph) * D.k_env + n * D.k_cl * 0.25f) * D.k_v;
+        D.k_env *= dc_kick;
+        D.k_pe *= dc_kpitch;
+        D.k_cl *= dc_click;
+    }
+    if (D.s_env > 1e-5f) {
+        float tone, noise;
+        D.s_ph1 += 185.0f * (1.0f / ENG_FS);
+        D.s_ph2 += 330.0f * (1.0f / ENG_FS);
+        if (D.s_ph1 >= 1.0f)
+            D.s_ph1 -= 1.0f;
+        if (D.s_ph2 >= 1.0f)
+            D.s_ph2 -= 1.0f;
+        tone = (0.6f * sine01(D.s_ph1) + 0.4f * sine01(D.s_ph2)) * D.s_te;
+        D.s_lp += 0.3f * (n - D.s_lp);
+        noise = brush ? D.s_lp * 1.6f : n - 0.5f * D.s_lp;
+        s = (tone * (brush ? 0.12f : 0.75f) + noise * D.s_env * (1.0f - D.s_att) * 0.55f) * D.s_v;
+        D.s_env *= brush ? dc_brush : dc_snare;
+        D.s_te *= dc_stone;
+        D.s_att *= dc_satt;
+    }
+    if (D.h_env > 1e-5f) {
+        float y = n - D.h_x1, z = y - D.h_y1;
+        D.h_x1 = n;
+        D.h_y1 = y;
+        h = z * 0.22f * D.h_env * D.h_v;
+        D.h_env *= D.h_dec;
+    }
+    if (D.t_env > 1e-5f) {
+        D.t_ph += (82.0f + 45.0f * D.t_pe) * (1.0f / ENG_FS);
+        if (D.t_ph >= 1.0f)
+            D.t_ph -= 1.0f;
+        t = sine01(D.t_ph) * D.t_env * D.t_v;
+        D.t_env *= dc_tom;
+        D.t_pe *= dc_tpitch;
+    }
+    if (D.r_env > 1e-5f) {
+        D.r_ph += 1650.0f * (1.0f / ENG_FS);
+        if (D.r_ph >= 1.0f)
+            D.r_ph -= 1.0f;
+        rm = (sine01(D.r_ph) * 0.6f + n * 0.4f) * D.r_env * D.r_v;
+        D.r_env *= dc_rim;
+    }
+    m = k + 0.8f * s + 0.8f * t;
+    l = m + 0.7f * h + 0.5f * rm;        /* the hat a little right, the rim a little left */
+    r = m + 1.0f * h + 0.3f * rm;
+    D.lp_l += lpc * (l - D.lp_l);
+    D.lp_r += lpc * (r - D.lp_r);
+    *dl = D.lp_l;
+    *dr = D.lp_r;
+}
+
+static void kit_init(void)
+{
+    dc_kick = coef_t(0.30f, ENG_FS);
+    dc_kpitch = coef_t(0.03f, ENG_FS);
+    dc_click = coef_t(0.002f, ENG_FS);
+    dc_snare = coef_t(0.11f, ENG_FS);
+    dc_brush = coef_t(0.2f, ENG_FS);
+    dc_stone = coef_t(0.05f, ENG_FS);
+    dc_satt = coef_t(0.012f, ENG_FS);
+    dc_hclosed = coef_t(0.028f, ENG_FS);
+    dc_hopen = coef_t(0.22f, ENG_FS);
+    dc_tom = coef_t(0.32f, ENG_FS);
+    dc_tpitch = coef_t(0.05f, ENG_FS);
+    dc_rim = coef_t(0.012f, ENG_FS);
+    D.rng = 0x2545F491u;
+}
+
+
 /* --------------------------------------------------------- the four steps --- */
 static void patch_apply(int p)
 {
@@ -633,10 +992,15 @@ static void drain(queue_t *q)
         case EV_PATCH:
             patch_apply(e.a);
             B.p = &PATCHES[cur_patch];
+            A.n = 0;
             break;
         case EV_PANIC:
             all_quick();
             set_sustain(0);
+            A.n = 0;
+            break;
+        case EV_ARP:
+            arp_note(e.a, e.b, 100);
             break;
         default:
             break;
@@ -659,6 +1023,24 @@ void eng_begin(uint32_t n)
     drain(&q_ui);
     drain(&q_isr);
     p = B.p = &PATCHES[cur_patch];
+    if (beat_req) {                      /* SEQ */
+        int r = beat_req;
+        beat_req = 0;
+        if (r == 1)
+            clock_start(1);
+        else
+            C.on = 0;
+    }
+    if (!C.on) {                         /* with the beat off, the clock runs for an arpeggio alone */
+        if (p->mono && A.n && !C.run) {
+            clock_start(0);
+            C.fired = 1;                 /* (its first note is already due) */
+        } else if (!(p->mono && A.n)) {
+            C.run = 0;
+        }
+    }
+    arp_play();
+    pulse *= 0.82f;
     B.n = n;
     B.nsub = (n + ENG_SUB - 1u) / ENG_SUB;
     tone = B.knob[K_TONE];
@@ -750,9 +1132,27 @@ void eng_end(int32_t *lr, uint32_t n, float gain)
     const float tl = p->trem_l / ENG_FS, tr = p->trem_r / ENG_FS, td = p->trem_depth;
     const float tape = p->tape, drive = 1.0f + 2.2f * tape, make_up = (1.0f + 0.4f * tape) / drive;
     const float out_gain = gain * 8000000.0f;
+    const beat_t *bt = p->beat;
+    const float sps = ENG_FS * 15.0f / tempo_bpm, swing = bt ? bt->swing : 0.0f;
+    const float kit_g = bt ? bt->level * beat_lv * 0.5f : 0.0f, kit_send = bt ? bt->send : 0.0f;
+    const float kit_lpc = 1.0f - fm_expf(-FM_TWO_PI * (bt ? bt->tone : 8000.0f) / ENG_FS);
+    const int brush = bt ? bt->brush : 0, ext = C.ext_t > 0u;
     float peak = 0.0f;
     if (n > B.n)
         n = B.n;
+    if (ext) {                           /* following a clock in: what its ticks made due, now */
+        while (C.run && C.ext_due) {
+            C.ext_due--;
+            if (C.fired)
+                C.step++;
+            fire(C.step);
+            C.fired = 1;
+        }
+        if (--C.ext_t == 0u) {           /* it stopped coming: on at our own tempo from here */
+            C.pos = 0.0f;
+            C.fired = 1;
+        }
+    }
     wow_flut += ((rndf(&wow_rng) - 0.5f) - wow_flut) * 0.05f;
     for (i = 0; i < n; i++) {
         float l = dry_a[2u * i] + dry_b[2u * i], r = dry_a[2u * i + 1u] + dry_b[2u * i + 1u];
@@ -781,6 +1181,18 @@ void eng_end(int32_t *lr, uint32_t n, float gain)
         if (p->trem_pan) {               /* the pan after it: the whole sound, the room too, carried round */
             ol *= gl;
             or_ *= gr;
+        }
+        if (C.run && !ext)
+            clock_sample(sps, swing);
+        {                                /* the kit: after the tremolo (it keeps time), some of it into the reverb */
+            float dl, dr;
+            kit_sample(kit_lpc, brush, &dl, &dr);
+            dl *= kit_g;
+            dr *= kit_g;
+            dry_last[2u * i] += dl * kit_send;
+            dry_last[2u * i + 1u] += dr * kit_send;
+            ol += dl;
+            or_ += dr;
         }
         /* tape: a slow wow and a little flutter on a short delay, then saturation */
         wow_buf[2u * wow_w] = ol;
@@ -821,6 +1233,7 @@ void eng_init(void)
         V[i].rng = 74565u + 7919u * i;
         V[i].pan = (float)((int)(i % 3u) - 1) * 0.6f;
     }
+    kit_init();
     arm.rng = 0xA5A5F00Du;
     arm.pos = arm.goal = -0.1f;
     cur_patch = 0;
