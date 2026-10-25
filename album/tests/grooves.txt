@@ -1,8 +1,6 @@
 # Album: each patch in chord mode over its own beat, recorded (album_host grooves.txt OUTDIR)
 wait 800
 master 3400
-tap ARP
-wait 60
 tap SEQ
 wait 60
 wav groove-red-door.wav

@@ -1,10 +1,7 @@
 # Album: chord mode, its key, the beat and its clock (album_host chords.txt OUTDIR)
 wait 800
-expect chords 0
 expect beat 0
-# ARP: chord mode on, in C. C4 on RED DOOR: C G D E, and the tonic ringing over it as an open string
-tap ARP
-wait 60
+# chord mode is on from the start, in C. C4 on RED DOOR: C G D E, and the tonic ringing over it as an open string
 expect chords 1
 expect key 0
 out

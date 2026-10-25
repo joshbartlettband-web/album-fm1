@@ -38,7 +38,7 @@ shows at the top for a moment when you choose it, and a knob's value shows at th
 | Keys | Play: a note each, or a chord each in chord mode. Velocity counts. |
 | PRESET | The next or previous patch (and its photo) |
 | K1 to K4 | Glide, Swell, Tone, Blur |
-| ARP | Chord mode on or off (lit while on). Held, then a key: that key's note becomes the key (section 5) |
+| ARP | Chord mode off or on: it is on from the start (lit while on). Held, then a key: that key's note becomes the key (section 5) |
 | SELECT | Chord mode's key, a semitone a click |
 | ALGORITHM | Fuzz, the fifth knob (section 3) |
 | FX | The fuzz in or out (lit while in), its setting kept |
@@ -88,7 +88,7 @@ Each patch has its own photo, and its sound comes from that photo.
 
 ## 5. Chord mode
 
-Press ARP and each key plays a whole chord. The chords come from My Bloody Valentine's records. Kevin Shields has
+Chord mode is on from the start: each key plays a whole chord. ARP turns it off for single notes, and on again. The chords come from My Bloody Valentine's records. Kevin Shields has
 said the progressions are "quite basic"; what makes them sound like his is the open tunings, which "leave a lot of
 room for odd variations of a basic chord", with open strings that "clash against the others in interesting ways"
 (Guitar World, March 1992). So the chords here are simple ones made strange: suspended, with added ninths and

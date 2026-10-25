@@ -58,7 +58,7 @@ static void settings_defaults(void)
     set.ble_off = 0;
     set.one_core = 0;
     set.key = 0;
-    set.chords = 0;
+    set.chords = 1;                      /* chord mode from the start */
     set.beat_level = 50;                 /* (100: twice as loud) */
     set.fuzz_off = 0;
     for (p = 0; p < MAX_PATCH; p++)

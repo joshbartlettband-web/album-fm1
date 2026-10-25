@@ -1,5 +1,10 @@
 # Album: the controls, MIDI in and out, saving (album_host basic.txt OUTDIR)
 wait 800
+# chord mode is on from the start; these tests play single notes, so ARP turns it off
+expect chords 1
+tap ARP
+wait 60
+expect chords 0
 expect patch 0
 expect photo 0
 shot boot.png
