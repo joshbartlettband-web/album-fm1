@@ -20,7 +20,8 @@
 #define ENG_BLOCK_MAX 256u
 #define ENG_SUB 16u                      /* samples between pitch, filter and tremolo updates */
 
-enum { K_GLIDE, K_SWELL, K_TONE, K_BLUR, K_FUZZ, NKNOB };   /* K_FUZZ: ALGORITHM */
+/* K_FUZZ: ALGORITHM; K_FZLO, K_FZMID, K_FZHI: the fuzz's own EQ (FX held and K1 to K3), 0.5 flat */
+enum { K_GLIDE, K_SWELL, K_TONE, K_BLUR, K_FUZZ, K_FZLO, K_FZMID, K_FZHI, NKNOB };
 enum { WAVE_SAW, WAVE_PULSE, WAVE_TRI, WAVE_SINE, WAVE_FM };
 /* chord mode's voicings, one a patch (the voicings themselves are the app's: chords.h) */
 enum { CH_OPEN, CH_ORGAN, CH_POWER, CH_DARK, CH_SPREAD, CH_CLUSTER, CH_SEVENTH, CH_FIFTHS, CH_ARP, CH_ICE, CH_TALL,
@@ -90,6 +91,11 @@ void eng_sustain_isr(int on);
 void eng_patch_isr(int p);
 void eng_knob(int k, float v);           /* 0..1, any context: the next block takes it */
 void eng_fuzz_on(int on);                /* FX: the fuzz in (1) or bypassed (0), its knob kept */
+void eng_fill(int held);                 /* FILL down (1): a fill to the bar's end, on while held; up (0) */
+void eng_beat_var(int v);                /* 0 sparse, 1 as written, 2 busy */
+void eng_bass(int on);                   /* the auto bass: the chord's root, on the kick, while the beat runs */
+void eng_bass_root(int note);            /* the note it plays (any octave: it finds its own) */
+int eng_filling(void);                   /* a fill is playing */
 void eng_arp_note(int note, int on);     /* a mono patch in chord mode: a note into (or out of) the arpeggio */
 
 /* the beat and the clock it shares with the arpeggio. SEQ starts it at a bar's start; a patch change keeps its place.

@@ -24,13 +24,16 @@ static int c1_join(void) { return 1; }
 static int c1_start(void) { return 0; }
 #endif
 
-static const char *const KNOB_NAME[NKNOB] = {"GLIDE", "SWELL", "TONE", "BLUR", "FUZZ"};
+static const char *const KNOB_NAME[NKNOB] = {"GLIDE", "SWELL", "TONE", "BLUR", "FUZZ", "FUZZ LOW", "FUZZ MID", "FUZZ HIGH"};
+/* each knob's MIDI CC, in and out (21 is the beat's level) */
+static const uint8_t KNOB_CC[NKNOB] = {16, 17, 18, 19, 20, 22, 23, 24};
+static float knob_start(const patch_t *p, uint32_t k) { return k >= K_FZLO ? 0.5f : p->knob[k]; }   /* (the EQ: flat) */
 static inline float sine_wave(float x) { return fm_sinf(x * FM_TWO_PI); }
-#define CC_KNOB0 16u                     /* MIDI CC 16..20: the five knobs, K1 to K4 and FUZZ (in and out) */
 #define MAX_PATCH 16u
 
 /* --------------------------------------------------------------- settings --- */
-#define SET_MAGIC 0x414C4236u            /* "ALB6": the fuzz (earlier layouts start fresh) */
+enum { MODE_NOTES, MODE_CHORDS, MODE_ACCORDION };   /* set.chords: how the keys play (ARP) */
+#define SET_MAGIC 0x414C4237u            /* "ALB7": the fuzz's EQ, accordion, the bass (earlier layouts start fresh) */
 typedef struct {
     uint32_t magic;
     uint8_t patch;
@@ -42,6 +45,9 @@ typedef struct {
     uint8_t chords;                      /* chord mode on */
     uint8_t beat_level;                  /* 0..100 */
     uint8_t fuzz_off;                    /* FX: the fuzz bypassed */
+    uint8_t beat_var;                    /* LFO: 0 sparse, 1 as written, 2 busy */
+    uint8_t bass;                        /* GLO: the auto bass on */
+    uint8_t two_cores;                   /* OCT+ held at power-on: the second core tried (until then, one) */
     int8_t tempo[MAX_PATCH];             /* each patch's tempo, BPM from its beat's own */
 } settings_t;
 static settings_t set;
@@ -61,12 +67,15 @@ static void settings_defaults(void)
     set.chords = 1;                      /* chord mode from the start */
     set.beat_level = 50;                 /* (100: twice as loud) */
     set.fuzz_off = 0;
+    set.beat_var = 1;
+    set.bass = 0;
+    set.two_cores = 0;
     for (p = 0; p < MAX_PATCH; p++)
         set.tempo[p] = 0;
     for (p = 0; p < MAX_PATCH; p++)
         for (k = 0; k < NKNOB; k++)
             set.knob[p][k] = (uint8_t)(p < (uint32_t)eng_patch_count()
-                                           ? (int)(eng_patch_info((int)p)->knob[k] * 255.0f + 0.5f) : 128);
+                                           ? (int)(knob_start(eng_patch_info((int)p), k) * 255.0f + 0.5f) : 128);
 }
 
 static float knob_val(uint32_t k) { return (float)set.knob[set.patch][k] * (1.0f / 255.0f); }
@@ -126,10 +135,13 @@ static void midi_in(void)
                 eng_sustain_isr(d2 >= 64u);
                 midi_hold_req = (uint8_t)(d2 >= 64u ? 2u : 1u);   /* the screen shows it (2 on, 1 off) */
             }
-            else if (d1 >= CC_KNOB0 && d1 < CC_KNOB0 + NKNOB) {
-                eng_knob((int)(d1 - CC_KNOB0), (float)d2 / 127.0f);
-                midi_knob_req[d1 - CC_KNOB0] = (uint8_t)d2;
-                midi_knob_mask |= (uint8_t)(1u << (d1 - CC_KNOB0));
+            else if (d1 >= 16u && d1 <= 24u && d1 != CC_BEAT) {
+                uint32_t k = 0;
+                while (k < NKNOB && KNOB_CC[k] != d1)
+                    k++;
+                eng_knob((int)k, (float)d2 / 127.0f);
+                midi_knob_req[k] = (uint8_t)d2;
+                midi_knob_mask |= (uint8_t)(1u << k);
             } else if (d1 == CC_BEAT) {
                 midi_beat_req = (int32_t)d2;
             } else if (d1 == 123u || d1 == 120u)
@@ -202,7 +214,8 @@ void app_init(void)
     eng_init();
     if (plat_store_load(OBJ_SETTINGS, &set, sizeof set) != (int)sizeof set || set.magic != SET_MAGIC
         || set.octave < -2 || set.octave > 2 || set.ble_off > 1u || set.one_core > 1u || set.key > 11u
-        || set.chords > 1u || set.beat_level > 100u || set.fuzz_off > 1u)
+        || set.chords > 2u || set.beat_level > 100u || set.fuzz_off > 1u || set.beat_var > 2u || set.bass > 1u
+        || set.two_cores > 1u)
         settings_defaults();
     if (set.patch >= (uint32_t)eng_patch_count())
         set.patch = 0;
@@ -210,11 +223,24 @@ void app_init(void)
     knobs_to_engine();
     beat_to_engine();
     eng_fuzz_on(!set.fuzz_off);
+    eng_beat_var(set.beat_var);
+    eng_bass(set.bass);
 #ifndef PLAT_HOST
-    if (!set.one_core && !(plat_buttons() >> B_OCTDN & 1u))   /* OCT- held at power-on: one core, this time */
+    /* one core unless asked: the second core's start hung a cold boot on hardware (a crash, then a restart on one
+     * core). OCT+ held at power-on tries two cores and remembers it (saved); OCT- held puts it back to one */
+    if (plat_buttons() >> B_OCTUP & 1u) {
+        set.two_cores = 1;
+        set_dirty = 1;
+    } else if (plat_buttons() >> B_OCTDN & 1u) {
+        set.two_cores = 0;
+        set_dirty = 1;
+    }
+    if (set.two_cores && !set.one_core)
         c1_start();
-    else
+    else {
         c1_why = C1_WHY_OFF;
+        eng_voice_cap(8);                /* one core: eight voices */
+    }
 #endif
 }
 
@@ -477,6 +503,7 @@ static struct {
     uint32_t keys, btn;
     int16_t key_notes[NKEYS][8];         /* the notes each held key started (one, or a chord) */
     uint8_t key_n[NKEYS], key_vel[NKEYS], key_arp[NKEYS];   /* how many; its velocity; sent to the arpeggio */
+    uint8_t fx_used;                     /* the fuzz's EQ set while FX was held: the fuzz left in */
     uint8_t arp_used;                    /* a key pressed while ARP was held: the key set, chord mode left as it is */
     uint8_t seq_used;                    /* a knob turned while SEQ was held: tempo or level set, the beat left as is */
     uint8_t master;                      /* this FM-1 started the beat: it sends the clock */
@@ -596,16 +623,32 @@ static void key_down(uint32_t k, uint32_t v, int quiet)
     int bass = clamp(53 + (int32_t)k + 12 * set.octave, 0, 127), i;
     const patch_t *p = eng_patch_info(set.patch);
     ui.key_vel[k] = (uint8_t)v;
-    if (set.chords) {
+    int pc = bass % 12, black = (0x54A >> pc) & 1;
+    if (set.chords == MODE_CHORDS || (set.chords == MODE_ACCORDION && black)) {
         char name[16];
-        ui.key_n[k] = (uint8_t)chord_build(bass, set.key, p->chord, ui.key_notes[k], name);
+        int root = bass;
+        if (set.chords == MODE_ACCORDION) {   /* a black key: one of the key's five chords, I ii IV V vi */
+            static const int8_t DEG[12] = {0, 0, 0, 2, 0, 0, 5, 0, 7, 0, 9, 0};
+            root = bass - pc + (set.key + DEG[pc]) % 12;
+            if (root > bass + 6)
+                root -= 12;
+            v = v * 3u / 4u;             /* (the chord under the tune, softer) */
+        }
+        ui.key_n[k] = (uint8_t)chord_build(root, set.key, p->chord, ui.key_notes[k], name);
         ui.key_arp[k] = p->mono;
+        if (ui.key_n[k])
+            eng_bass_root(ui.key_notes[k][0]);   /* the bass plays the chord's lowest note */
         if (!quiet) {
             app_say(name, "");
             ui.msg_until = plat_ms() + 900u;
         }
     } else {
-        ui.key_notes[k][0] = (int16_t)bass;
+        int n = bass;
+        if (set.chords == MODE_ACCORDION && !((0xAB5 >> ((pc - set.key + 12) % 12)) & 1))
+            n += chord_flats(set.key) ? -1 : 1;   /* a white key in the key: F in G is F#, B in F is Bb */
+        else if (set.chords == MODE_NOTES)
+            eng_bass_root(n);
+        ui.key_notes[k][0] = (int16_t)n;
         ui.key_n[k] = 1;
         ui.key_arp[k] = 0;
     }
@@ -640,12 +683,13 @@ static void key_set(int key)
     app_say("KEY", KEY_NAME(set.key));
 }
 
-static void chords_set(int on)
+static void chords_set(int mode)          /* ARP: CHORDS, ACCORDION, NOTES */
 {
-    set.chords = (uint8_t)(on != 0);
+    static const char *const NAME[3] = {"NOTES", "CHORDS", "ACCORDION"};
+    set.chords = (uint8_t)((mode % 3 + 3) % 3);
     set_dirty = 1;
     keys_again();
-    app_say("CHORDS", set.chords ? KEY_NAME(set.key) : "OFF");
+    app_say(NAME[set.chords], set.chords ? KEY_NAME(set.key) : "");
 }
 
 static void beat_set(int on)             /* SEQ: start or stop; a linked FM-1 starts and stops with it */
@@ -745,7 +789,7 @@ static void knob_set(uint32_t k, int32_t v255, int send)
     set_dirty = 1;
     eng_knob((int)k, knob_val(k));
     if (send)
-        midi_send3(0xB0u, CC_KNOB0 + k, (uint32_t)v255 >> 1);
+        midi_send3(0xB0u, KNOB_CC[k], (uint32_t)v255 >> 1);
     ui.knob_shown = (int8_t)k;
     ui.knob_until = plat_ms() + 1200u;
     ph.dirty = 1;
@@ -846,7 +890,7 @@ static void input(void)
         case B_HOME: {                   /* the knobs back where the patch starts */
             uint32_t j;
             for (j = 0; j < NKNOB; j++)
-                knob_set(j, (int32_t)(eng_patch_info(set.patch)->knob[j] * 255.0f + 0.5f), 1);
+                knob_set(j, (int32_t)(knob_start(eng_patch_info(set.patch), j) * 255.0f + 0.5f), 1);
             set.tempo[set.patch] = 0;
             beat_to_engine();
             app_say("KNOBS", "AS THEY START");
@@ -867,11 +911,25 @@ static void input(void)
         case B_ARP:                      /* chord mode, on its release (unless a key was set while it was held) */
             ui.arp_used = 0;
             break;
-        case B_FX:                       /* the fuzz in or out, its knob kept */
-            set.fuzz_off = (uint8_t)!set.fuzz_off;
+        case B_FX:                       /* the fuzz in or out on its release, unless its EQ was set while held */
+            ui.fx_used = 0;
+            break;
+        case B_ENV:                      /* FILL: down, a fill to the bar's end; held, it keeps going */
+            eng_fill(1);
+            break;
+        case B_LFO: {                    /* the beat: sparse, as written, busy */
+            static const char *const V[3] = {"SPARSE", "AS WRITTEN", "BUSY"};
+            set.beat_var = (uint8_t)((set.beat_var + 1u) % 3u);
             set_dirty = 1;
-            eng_fuzz_on(!set.fuzz_off);
-            app_say("FUZZ", set.fuzz_off ? "OFF" : "ON");
+            eng_beat_var(set.beat_var);
+            app_say("BEAT", V[set.beat_var]);
+            break;
+        }
+        case B_GLO:                      /* the auto bass */
+            set.bass = (uint8_t)!set.bass;
+            set_dirty = 1;
+            eng_bass(set.bass);
+            app_say("BASS", set.bass ? "ON" : "OFF");
             break;
         case B_SEQ:                      /* the beat, on its release (unless its tempo or level was set while held) */
             ui.seq_used = 0;
@@ -881,7 +939,15 @@ static void input(void)
         }
     }
     if (!(btn >> B_ARP & 1u) && (ui.btn >> B_ARP & 1u) && !ui.arp_used)
-        chords_set(!set.chords);
+        chords_set(set.chords == MODE_CHORDS ? MODE_ACCORDION : set.chords == MODE_ACCORDION ? MODE_NOTES : MODE_CHORDS);
+    if (!(btn >> B_FX & 1u) && (ui.btn >> B_FX & 1u) && !ui.fx_used) {
+        set.fuzz_off = (uint8_t)!set.fuzz_off;
+        set_dirty = 1;
+        eng_fuzz_on(!set.fuzz_off);
+        app_say("FUZZ", set.fuzz_off ? "OFF" : "ON");
+    }
+    if (!(btn >> B_ENV & 1u) && (ui.btn >> B_ENV & 1u))
+        eng_fill(0);
     if (!(btn >> B_SEQ & 1u) && (ui.btn >> B_SEQ & 1u) && !ui.seq_used)
         beat_set(!eng_beat_on());
     if (FM1B_BLE && ui.rec_t) {          /* REC held a second: Bluetooth off or on; a press: link */
@@ -920,6 +986,11 @@ static void input(void)
             beat_level_step(e * ((e > 2 || e < -2) ? 10 : 5));
         } else if (k == EN_SELECT) {     /* chord mode's key */
             key_set((int)set.key + (e > 0 ? 1 : -1));
+        } else if (k >= EN_K1 && k <= EN_K3 && (btn >> B_FX & 1u)) {   /* FX held: the fuzz's EQ, low, mid, high */
+            int32_t step = (e > 2 || e < -2) ? 10 : 5;
+            uint32_t q = K_FZLO + (k - EN_K1);
+            ui.fx_used = 1;
+            knob_set(q, (int32_t)set.knob[set.patch][q] + e * step, 1);
         } else if (k >= EN_K1 && k <= EN_K4) {
             int32_t step = (e > 2 || e < -2) ? 10 : 5;     /* a fast turn goes further */
             knob_set(k - EN_K1, (int32_t)set.knob[set.patch][k - EN_K1] + e * step, 1);
@@ -930,6 +1001,8 @@ static void input(void)
     plat_glow(1);
     plat_leds((set_dirty ? 1u << B_SAVE : 0u) | (ui.hold ? LED_PLAY_GREEN | 1u << B_PLAY : 0u)
                   | (set.chords ? 1u << B_ARP : 0u) | (set.fuzz_off ? 0u : 1u << B_FX)
+                  | (eng_filling() ? 1u << B_ENV : 0u) | (set.beat_var != 1u ? 1u << B_LFO : 0u)
+                  | (set.bass ? 1u << B_GLO : 0u)
                   | (eng_beat_on() && (eng_step() & 3u) == 0u ? 1u << B_SEQ : 0u)   /* SEQ blinks the beats */
                   | (btn & ~(1u << B_PLAY)), keys);
 }
@@ -1139,6 +1212,14 @@ int app_expect(const char *what, int *got)
         *got = set.chords;
     else if (!strcmp(what, "beat"))
         *got = eng_beat_on();
+    else if (!strcmp(what, "fuzz_off"))
+        *got = set.fuzz_off;
+    else if (!strcmp(what, "filling"))
+        *got = eng_filling();
+    else if (!strcmp(what, "beat_var"))
+        *got = set.beat_var;
+    else if (!strcmp(what, "bass"))
+        *got = set.bass;
     else if (!strcmp(what, "beat_level"))
         *got = set.beat_level;
     else if (!strcmp(what, "tempo"))

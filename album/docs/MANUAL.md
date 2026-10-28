@@ -38,10 +38,13 @@ shows at the top for a moment when you choose it, and a knob's value shows at th
 | Keys | Play: a note each, or a chord each in chord mode. Velocity counts. |
 | PRESET | The next or previous patch (and its photo) |
 | K1 to K4 | Glide, Swell, Tone, Blur |
-| ARP | Chord mode off or on: it is on from the start (lit while on). Held, then a key: that key's note becomes the key (section 5) |
+| ARP | How the keys play, one press each: CHORDS (from the start), ACCORDION, NOTES (section 5). Held, then a key: that key's note becomes the key |
 | SELECT | Chord mode's key, a semitone a click |
 | ALGORITHM | Fuzz, the fifth knob (section 3) |
-| FX | The fuzz in or out (lit while in), its setting kept |
+| FX | The fuzz in or out (lit while in), its setting kept. Held: K1, K2 and K3 are the fuzz's low, mid and high |
+| ENV | FILL: a drum fill to the end of the bar; held, it keeps going (lit while it plays) |
+| LFO | The beat: SPARSE, AS WRITTEN, BUSY (lit unless as written) |
+| GLO | The auto bass on or off (lit while on) |
 | SEQ | The patch's beat on or off (blinks with it). Held: ALGORITHM sets the tempo, SELECT the beat's level |
 | PLAY | Hold: the notes keep sounding after you let go (lit green). Again: let go. |
 | OCT- / OCT+ | The octave, two down to two up |
@@ -62,7 +65,7 @@ Every patch has the same five knobs: K1 to K4, and ALGORITHM for the fuzz. Each 
 | K2 Swell | The reverse reverb's length: a quick lift to a slow rise over a second and a half | The red light swells |
 | K3 Tone | Dark to bright, the reverb too | Darker to brighter |
 | K4 Blur | How much of the sound is the reverb, and how smeared: clear to all wash | A sideways smear |
-| ALGORITHM Fuzz | A fuzz pedal on the whole chord at once, so its notes grind together, before the tremolo and the reverb. Clean to all fuzz; the lows stay clean beside it, and Tone opens it up. FX takes it out and puts it back | The colours burn: more contrast, more colour |
+| ALGORITHM Fuzz | A fuzz pedal on the whole chord at once, so its notes grind together, before the tremolo and the reverb. Clean to all fuzz; the lows stay clean beside it, and Tone opens it up. FX takes it out and puts it back. Hold FX and turn K1, K2, K3 for its own EQ: low (under 250 Hz), mid, high (above 2.5 kHz), each from 12 dB down to 12 dB up; turning the high down also darkens the fuzz's tone, as a pedal's tone knob does | The colours burn: more contrast, more colour |
 
 ![Blur turned up: its value at the bottom](img/screen-knob.png "A knob's value while it turns")
 
@@ -113,6 +116,12 @@ Every key plays something, the black keys too. In the key of C:
 
 The flat seventh, flat sixth, flat third and major second are all on Only Tomorrow. The chord's name shows on the
 screen as you play it.
+
+**Accordion.** Press ARP once more and the black keys hold chords while the white keys play a tune over them, as on
+an accordion. The black keys play the key's five most used chords, the same on every key: C# the I chord, D# the ii,
+F# the IV, G# the V, A# the vi (in C: C, Dm, F, G, Am), each voiced the patch's way and a little softer. The white
+keys play one note each, kept in the key: in G the F key plays F#, in F the B key plays Bb. On BLUESTEM the chords
+make the arpeggio, and it waits while you hold a tune note. One more press of ARP: NOTES, a note a key.
 
 **The key.** Turn SELECT to move the key a semitone a click, or hold ARP and press any key: its note becomes the
 key, and chord mode stays on. The key shows at the bottom right. Chords you are holding move with it.
@@ -166,6 +175,17 @@ SELECT to set the beat's level, apart from the rest of the sound: five steps a c
 knobs'. It starts at 50; 100 is twice as loud, 0 silent. (Turning a knob while SEQ is held leaves the beat running when you let go.) Changing patch keeps the beat's place: the new patch's beat and tempo take over on the next
 sixteenth. In chord mode on BLUESTEM, the arpeggio follows the same clock, with or without the beat.
 
+**Fills.** Press ENV for a fill: toms tumbling down and the snare rolling in (or the patch's own fill, where its beat
+has one) to the end of the bar, or to the end of the next one when you press late in the bar. Hold ENV and the fill
+keeps going until you let go.
+
+**Sparse and busy.** LFO steps the beat through SPARSE (kick and snare only, the soft hits left out), AS WRITTEN and
+BUSY (a hat on every sixteenth and ghost notes on the snare).
+
+**The bass.** GLO turns on a bass that plays with the beat: on every kick, the lowest note of the chord you are
+playing (a slash chord's bass note; in NOTES, the last note), down where a bass guitar sits, sliding a little from
+note to note. It plays only while the beat runs, at the beat's level.
+
 ## 7. Two FM-1s as one
 
 Two FM-1s running Album link over Bluetooth and play as one: the keys, the knobs, the patch and hold go from each to
@@ -199,18 +219,20 @@ In over USB, Bluetooth and the TRS jack; out over USB and Bluetooth. Any channel
 | Program change | The patch (0 is RED DOOR) | PRESET |
 | CC 120, 123 | All sound off | |
 | CC 21 | The beat's level | SEQ held and SELECT |
+| CC 22, 23, 24 | The fuzz's low, mid, high | FX held and K1, K2, K3 |
 | Clock, start, stop | The beat follows another FM-1 or a computer | While this FM-1's beat runs |
 
 Nothing received is sent back out, so two linked FM-1s never echo.
 
 ## 10. The second core
 
-The FM-1's chip has two cores. Album runs half of the voices and the reverse reverb on the second one. If the second
-core does not start, stalls, or gets its results wrong (some FM-1s' second cores now and then misread memory), Album
-gives it up and plays everything on one core until the next power-off, with up to eight voices instead of twelve.
-You may hear one short gap when that happens.
+The FM-1's chip has two cores. Album can run half of the voices and the reverse reverb on the second one, for twelve
+voices instead of eight, but starting it hung a power-on on a real FM-1 (it crashed, then started again on one core
+and played fine). So Album starts on one core, with eight voices.
 
-Hold OCT- while switching on to start on one core.
+To try two cores, hold OCT+ while switching on; Album remembers it. Hold OCT- while switching on to go back to one.
+If the second core does not start, stalls, or gets its results wrong (some FM-1s' second cores now and then misread
+memory), Album gives it up and plays everything on one core until the next power-off.
 
 ## 11. Troubleshooting
 

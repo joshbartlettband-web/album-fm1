@@ -91,7 +91,7 @@ void eng_note_off_isr(int note) { q_push(&q_isr, EV_OFF, note, 0); }
 void eng_sustain_isr(int on) { q_push(&q_isr, EV_SUS, on != 0, 0); }
 void eng_patch_isr(int p) { q_push(&q_isr, EV_PATCH, p, 0); }
 
-static volatile float knob_in[NKNOB] = {0.5f, 0.5f, 0.5f, 0.5f, 0.0f};
+static volatile float knob_in[NKNOB] = {0.5f, 0.5f, 0.5f, 0.5f, 0.0f, 0.5f, 0.5f, 0.5f};
 static volatile uint8_t fuzz_on = 1;
 void eng_fuzz_on(int on) { fuzz_on = (uint8_t)(on != 0); }
 void eng_knob(int k, float v)
@@ -416,6 +416,8 @@ static void arp_play(void)               /* eng_begin: the next note, or let go 
     if (!A.due)
         return;
     A.due = 0;
+    if (mono_n)                          /* a tune over it (ACCORDION): the arpeggio waits for it */
+        return;
     {
         int note = A.note[A.idx];
         float v = (float)A.vel / 127.0f;
@@ -826,30 +828,101 @@ static float hit_of(const char *p, uint32_t s)   /* the step's letter: 0 rest, e
     }
 }
 
-static void fire(uint32_t step)          /* a sixteenth: the arpeggio's next note, the kit's hits */
+/* FILL, the beat's variation and the bass: set from the main loop, read here */
+static volatile uint8_t fill_held, fill_tap, beat_var = 1, bass_on;
+static volatile int bass_root = -1;
+static uint32_t fill_until;              /* the step a tapped fill ends on */
+static uint8_t filling;
+void eng_fill(int held)
+{
+    if (held)
+        fill_tap = 1;
+    fill_held = (uint8_t)(held != 0);
+}
+void eng_beat_var(int v) { beat_var = (uint8_t)(v < 0 ? 0 : v > 2 ? 2 : v); }
+void eng_bass(int on) { bass_on = (uint8_t)(on != 0); }
+void eng_bass_root(int note) { bass_root = note; }
+int eng_filling(void) { return filling; }
+
+/* a fill for a beat that has none of its own: toms tumbling down, then the snare rolling in */
+static const char FILL_TOM[] = "x.o.-.o.x.-.....", FILL_SNARE[] = ".......-o.o-oxox";
+
+static struct {
+    float ph, f, target, env, lp1, lp2, v;
+} BS;
+static float dc_bass, bass_glide;
+
+static void fire(uint32_t step)          /* a sixteenth: the arpeggio's next note, the kit's hits, the bass */
 {
     const patch_t *p = B.p;
     const beat_t *b = p->beat;
     uint32_t s = step & 15u, bar = step >> 4;
+    int sparse = beat_var == 0, busy = beat_var == 2;
     float v;
     if (p->mono && A.n && p->arp_div && s % p->arp_div == 0u)
         A.due = 1;
-    if (!C.on || !b)
+    if (!C.on || !b) {
+        filling = 0;
         return;
-    if ((v = hit_of(b->kick, s)) > 0.0f) {
+    }
+    if (fill_tap) {                      /* FILL: to this bar's end (to the next's, pressed late in this one) */
+        fill_tap = 0;
+        fill_until = (bar + (s >= 12u ? 2u : 1u)) << 4;
+    }
+    filling = (uint8_t)(fill_held || step < fill_until);
+    if ((v = hit_of(b->kick, s)) > 0.0f && !(sparse && v < 0.5f)) {
         D.k_env = 1.0f;
         D.k_pe = 1.0f;
         D.k_cl = 1.0f;
         D.k_ph = 0.0f;
         D.k_v = v;
         pulse = fm_maxf(pulse, v);
+        if (bass_on && bass_root >= 0) { /* the bass on the kick: the chord's root, low */
+            int n = bass_root;
+            while (n > 43)
+                n -= 12;
+            while (n < 31)
+                n += 12;
+            BS.target = 440.0f * fm_exp2f(((float)n - 69.0f) * (1.0f / 12.0f));
+            if (BS.env < 0.02f)
+                BS.f = BS.target;
+            BS.env = 1.0f;
+            BS.v = 0.7f + 0.3f * v;
+        }
     }
-    if ((v = hit_of(b->fill && (bar & 3u) == 3u ? b->fill : b->snare, s)) > 0.0f) {
+    if (filling) {                       /* the fill: its snare (the beat's own, or the roll), toms, no hats */
+        if ((v = hit_of(b->fill ? b->fill : FILL_SNARE, s)) > 0.0f) {
+            D.s_env = 1.0f;
+            D.s_te = 1.0f;
+            D.s_att = b->brush ? 1.0f : 0.0f;
+            D.s_v = v;
+        }
+        if ((v = hit_of(FILL_TOM, s)) > 0.0f) {
+            D.t_env = 1.0f;
+            D.t_pe = 1.0f;
+            D.t_v = v;
+        }
+        return;
+    }
+    if (busy && s % 4u == 3u && hit_of(b->snare, s) == 0.0f) {   /* BUSY: ghost notes on the snare */
+        D.s_env = 1.0f;
+        D.s_te = 1.0f;
+        D.s_att = b->brush ? 1.0f : 0.0f;
+        D.s_v = 0.22f;
+    }
+    if (busy && b->hat && hit_of(b->hat, s) == 0.0f && hit_of(b->open, s) == 0.0f) {   /* and every sixteenth's hat */
+        D.h_env = 1.0f;
+        D.h_dec = dc_hclosed;
+        D.h_v = 0.25f;
+    }
+    if ((v = hit_of(b->fill && (bar & 3u) == 3u ? b->fill : b->snare, s)) > 0.0f && !(sparse && v < 0.5f)) {
         D.s_env = 1.0f;
         D.s_te = 1.0f;
         D.s_att = b->brush ? 1.0f : 0.0f;
         D.s_v = v;
     }
+    if (sparse)                          /* SPARSE: kick and snare only */
+        return;
     if ((v = hit_of(b->hat, s)) > 0.0f) {
         D.h_env = 1.0f;
         D.h_dec = dc_hclosed;
@@ -964,6 +1037,8 @@ static void kit_init(void)
     dc_tom = coef_t(0.32f, ENG_FS);
     dc_tpitch = coef_t(0.05f, ENG_FS);
     dc_rim = coef_t(0.012f, ENG_FS);
+    dc_bass = coef_t(0.55f, ENG_FS);
+    bass_glide = 1.0f - coef_t(0.03f, ENG_FS);
     D.rng = 0x2545F491u;
 }
 
@@ -1125,6 +1200,7 @@ int eng_b_sane(void)
 #ifndef FZ_OUT
 #define FZ_OUT 0.16f                     /* the fuzz's level: about the clean sound's */
 #endif
+static float eq_a_l, eq_a_r, eq_b_l, eq_b_r;   /* the fuzz's EQ: its two crossovers */
 static float fz_now, fz_hp_l, fz_hp_r, fz_lp_l, fz_lp_r, fz_lo_l, fz_lo_r;
 
 /* tremolo, wow and saturation: core 0, after the join */
@@ -1155,8 +1231,14 @@ void eng_end(int32_t *lr, uint32_t n, float gain)
         fz_now = 0.0f;
     const float fz = fz_now, fz_drive = 4.0f + 140.0f * fz * fm_sqrtf(fz), fz_mix = fm_minf(1.0f, fz * 3.0f);
     const float fz_out = FZ_OUT, fz_hpc = 1.0f - fm_expf(-FM_TWO_PI * 140.0f / ENG_FS);
-    const float fz_lpc = 1.0f - fm_expf(-FM_TWO_PI * 3000.0f * fm_exp2f(1.5f * B.knob[K_TONE]) / ENG_FS);
+    /* its tone: Tone opens it, and the EQ's high knob moves it too (as a pedal's tone knob does), 1/3 to 3 times */
+    const float fz_lpc = 1.0f - fm_expf(-FM_TWO_PI * fm_minf(3000.0f * fm_exp2f(1.5f * B.knob[K_TONE]
+                                                                    + 3.2f * (B.knob[K_FZHI] - 0.5f)), 16000.0f) / ENG_FS);
     const float fz_loc = 1.0f - fm_expf(-FM_TWO_PI * 140.0f / ENG_FS);
+    /* its EQ, on the fuzz alone: lows under 250 Hz, mids to 2.5 kHz, highs above, each 12 dB down to 12 dB up */
+    const float eqa = 1.0f - fm_expf(-FM_TWO_PI * 250.0f / ENG_FS), eqb = 1.0f - fm_expf(-FM_TWO_PI * 2500.0f / ENG_FS);
+    const float eq_lo = fm_exp2f((B.knob[K_FZLO] - 0.5f) * 4.0f), eq_mid = fm_exp2f((B.knob[K_FZMID] - 0.5f) * 4.0f);
+    const float eq_hi = fm_exp2f((B.knob[K_FZHI] - 0.5f) * 4.0f);
     if (ext) {                           /* following a clock in: what its ticks made due, now */
         while (C.run && C.ext_due) {
             C.ext_due--;
@@ -1194,8 +1276,14 @@ void eng_end(int32_t *lr, uint32_t n, float gain)
                 fz_lp_l = 0.0f;
             if (fz_lp_r < 1e-9f && fz_lp_r > -1e-9f)
                 fz_lp_r = 0.0f;
-            l = l * (1.0f - fz_mix) + (fz_lp_l * fz_out + fz_lo_l * 0.5f) * fz_mix;
-            r = r * (1.0f - fz_mix) + (fz_lp_r * fz_out + fz_lo_r * 0.5f) * fz_mix;
+            eq_a_l += eqa * (fz_lp_l - eq_a_l);
+            eq_a_r += eqa * (fz_lp_r - eq_a_r);
+            eq_b_l += eqb * (fz_lp_l - eq_b_l);
+            eq_b_r += eqb * (fz_lp_r - eq_b_r);
+            yl = eq_lo * eq_a_l + eq_mid * (eq_b_l - eq_a_l) + eq_hi * (fz_lp_l - eq_b_l);
+            yr = eq_lo * eq_a_r + eq_mid * (eq_b_r - eq_a_r) + eq_hi * (fz_lp_r - eq_b_r);
+            l = l * (1.0f - fz_mix) + (yl * fz_out + fz_lo_l * 0.5f) * fz_mix;
+            r = r * (1.0f - fz_mix) + (yr * fz_out + fz_lo_r * 0.5f) * fz_mix;
         }
         if (td > 0.0f) {                 /* two amps, two speeds (or one sound carried side to side) */
             float ml = sine01(trem_l_ph), mr = p->trem_pan ? -ml : sine01(trem_r_ph);
@@ -1225,6 +1313,22 @@ void eng_end(int32_t *lr, uint32_t n, float gain)
         {                                /* the kit: after the tremolo (it keeps time), some of it into the reverb */
             float dl, dr;
             kit_sample(kit_lpc, brush, &dl, &dr);
+            if (BS.env > 1e-4f) {        /* the bass: a sine and a little saw, rounded, sliding to its note */
+                float saw, x;
+                BS.f += (BS.target - BS.f) * bass_glide;
+                BS.ph += BS.f * (1.0f / ENG_FS);
+                if (BS.ph >= 1.0f)
+                    BS.ph -= 1.0f;
+                saw = 2.0f * BS.ph - 1.0f;
+                x = (sine01(BS.ph) + 0.35f * saw) * BS.env * BS.v;
+                BS.lp1 += 0.06f * (x - BS.lp1);
+                BS.lp2 += 0.06f * (BS.lp1 - BS.lp2);
+                dl += BS.lp2 * 0.5f;
+                dr += BS.lp2 * 0.5f;
+                BS.env *= dc_bass;
+            } else if (BS.env != 0.0f) {
+                BS.env = BS.lp1 = BS.lp2 = 0.0f;
+            }
             dl *= kit_g;
             dr *= kit_g;
             dry_last[2u * i] += dl * kit_send;
