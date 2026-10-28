@@ -235,6 +235,11 @@ void app_init(void)
         set.two_cores = 0;
         set_dirty = 1;
     }
+    if (set.two_cores && c1_bar.magic == C1_BAR_MAGIC && c1_bar.barred
+        && (c1_bar.why == C1_WHY_CRASH || c1_bar.why == C1_WHY_NOSTART)) {
+        set.two_cores = 0;               /* it crashed (or would not start) with two: one from now on, kept */
+        plat_store_save(OBJ_SETTINGS, &set, sizeof set);
+    }
     if (set.two_cores && !set.one_core)
         c1_start();
     else {
