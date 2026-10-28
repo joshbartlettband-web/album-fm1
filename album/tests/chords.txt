@@ -56,7 +56,23 @@ key w8 up
 wait 60
 expect key 7
 expect chords 1
-# ARP: chord mode off, single notes again
+# ARP: accordion. A black key plays one of the key's five chords (G: C# is I, G), softer; a white key one note, in key
+tap ARP
+wait 60
+expect chords 2
+listen
+key b3 down 100
+wait 60
+said G
+expect notes 5
+key w7 down 100
+wait 60
+expect notes 6
+expect_out USB 90 42 64
+key w7 up
+key b3 up
+wait 30
+# ARP again: single notes
 tap ARP
 wait 60
 expect chords 0
@@ -119,3 +135,27 @@ out
 midi B0 15 7F
 wait 60
 expect beat_level 100
+# FX held and K3: the fuzz's highs (knob 7) down, the fuzz left in; FX alone: out
+press FX
+turn K3 -4
+release FX
+wait 60
+expect knob7 108
+expect fuzz_off 0
+tap FX
+wait 30
+expect fuzz_off 1
+tap FX
+# FILL, the beat's variation, the bass
+tap SEQ
+wait 400
+press ENV
+wait 100
+expect filling 1
+release ENV
+tap LFO
+wait 30
+expect beat_var 2
+tap GLO
+wait 30
+expect bass 1
