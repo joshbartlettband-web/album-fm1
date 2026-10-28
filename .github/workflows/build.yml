@@ -83,7 +83,7 @@ jobs:
             exit 1
           fi
           ls -la album/build/*.fwsc
-          grep -i -E "^(notes?|ram|flash|pool|app|size|\.ram_text)|KB|bytes" build.log | tail -n 30 \
+          grep -i -E "^(notes?|ram|flash|pool|app|size|\.ram_text)|KB|bytes|RAM \.data" build.log | tail -n 30 \
             | sed -e 's/%/%25/g' | sed ':a;N;$!ba;s/\n/%0A/g' | sed 's/^/::notice title=FM-1 build::/'
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02   # v4.6.2
         with:
