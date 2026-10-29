@@ -1275,6 +1275,19 @@ void app_frame(void)
 #endif
         ui.msg_until = now + 3000u;
     }
+    {   /* every boot: which it is running on, a moment after the photo comes up */
+        static uint8_t said_cores;
+        if (intro.on && !said_cores && now - intro.t0 >= 600u && now >= ui.msg_until) {
+#ifndef PLAT_HOST
+            int two = c1_on;
+#else
+            int two = set.two_cores;
+#endif
+            said_cores = 1;
+            app_say(two ? "TWO CORES" : "ONE CORE", two ? "12 VOICES" : "8 VOICES");
+            ui.msg_until = now + 3000u;
+        }
+    }
     if (intro.on) {                      /* the intro: about 30 frames a second, then the patch's name */
         if (now - intro.t0 >= INTRO_GONE) {
             char a[24], b[24];
