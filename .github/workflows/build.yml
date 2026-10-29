@@ -76,7 +76,8 @@ jobs:
         run: |
           set -o pipefail
           build() { python3 base/tools/build.py album "$@" 2>&1 | tee -a build.log; }
-          if ! build --release "$V" || ! build --release "$V" --no-ble; then
+          if ! { build --release "$V" && cp album/build/album.elf album/build/album-ble.elf; } \
+             || ! build --release "$V" --no-ble; then
             # the build's last lines as one annotation: readable from `gh run view` and the run's summary
             msg="$(tail -n 80 build.log | sed -e 's/%/%25/g' -e 's/\r/%0D/g' | sed ':a;N;$!ba;s/\n/%0A/g')"
             echo "::error title=FM-1 build failed::${msg}"
@@ -90,6 +91,12 @@ jobs:
           name: album-${{ env.V }}
           path: album/build/*.fwsc
           if-no-files-found: error
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02   # v4.6.2
+        with:
+          name: album-${{ env.V }}-symbols   # the ELFs, for reading a crash screen's addresses
+          path: |
+            album/build/album-ble.elf
+            album/build/album.elf
       - uses: mymindstorm/setup-emsdk@v14
       - name: The emulator and the site
         run: |
