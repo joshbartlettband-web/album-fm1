@@ -119,8 +119,10 @@ The flat seventh, flat sixth, flat third and major second are all on Only Tomorr
 screen as you play it.
 
 **Accordion.** Press ARP once more and the black keys hold chords while the white keys play a tune over them, as on
-an accordion. The black keys play the key's five most used chords, the same on every key: C# the I chord, D# the ii,
-F# the IV, G# the V, A# the vi (in C: C, Dm, F, G, Am), each voiced the patch's way and a little softer. The white
+an accordion. The black keys play the key's five most used chords: C# the I chord, D# the ii, F# the IV, G# the V,
+A# the vi (in C: C, Dm, F, G, Am), a little softer than the tune. Each row of black keys voices them its own way:
+the bottom row (F#3 to A#3) open and low, root, fifth and octave with the third on top, as a guitar's open shapes;
+the middle row (C#4 to A#4) the patch's own way; the top row (C#5 to F#5) extended: Cmaj9, Dm9, F6/9. The white
 keys play one note each, kept in the key: in G the F key plays F#, in F the B key plays Bb. On BLUESTEM the chords
 make the arpeggio, and it waits while you hold a tune note. One more press of ARP: NOTES, a note a key.
 
@@ -236,7 +238,9 @@ The FM-1's chip has two cores. Album can run half of the voices and the reverse 
 voices instead of eight, but starting it hung a power-on on a real FM-1 (it crashed, then started again on one core
 and played fine). So Album starts on one core, with eight voices.
 
-To try two cores, hold OCT+ while switching on; Album remembers it. Hold OCT- while switching on to go back to one.
+To try two cores, hold OCT+ on the boot screen for a second and a half: TWO CORES, 12 VOICES (or TWO CORES FAILED,
+if it would not start). Album remembers it. Hold OCT- there the same way for ONE CORE. A short press of OCT+ or OCT-
+on the boot screen still changes the octave, when you let go.
 If the second core does not start, stalls, or gets its results wrong (some FM-1s' second cores now and then misread
 memory), Album gives it up and plays everything on one core until the next power-off. If it crashes, Album goes
 back to one core for good, and after the boot screen it shows for ten seconds how far the second core got:

@@ -234,14 +234,8 @@ void app_init(void)
     eng_bass(set.bass);
 #ifndef PLAT_HOST
     /* one core unless asked: the second core's start hung a cold boot on hardware (a crash, then a restart on one
-     * core). OCT+ held at power-on tries two cores and remembers it (saved); OCT- held puts it back to one */
-    if (plat_buttons() >> B_OCTUP & 1u) {
-        set.two_cores = 1;
-        set_dirty = 1;
-    } else if (plat_buttons() >> B_OCTDN & 1u) {
-        set.two_cores = 0;
-        set_dirty = 1;
-    }
+     * core). OCT+ held through the boot screen tries two cores and remembers it; OCT- held puts it back to one
+     * (cores_hold, app_frame: the panel is not read yet this early) */
     if (set.two_cores && c1_bar.magic == C1_BAR_MAGIC && c1_bar.barred
         && (c1_bar.why == C1_WHY_CRASH || c1_bar.why == C1_WHY_NOSTART)) {
         set.two_cores = 0;               /* it crashed (or would not start) with two: one from now on, kept */
@@ -517,6 +511,9 @@ static struct {
     uint8_t key_n[NKEYS], key_vel[NKEYS], key_arp[NKEYS];   /* how many; its velocity; sent to the arpeggio */
     uint8_t fx_used;                     /* the fuzz's EQ set while FX was held: the fuzz left in */
     uint8_t arp_used;                    /* a key pressed while ARP was held: the key set, chord mode left as it is */
+    uint8_t boot_screen;                 /* the intro is on: OCT+ or OCT- held there chooses the cores */
+    uint8_t oct_used;
+    uint32_t oct_t;
     uint8_t seq_used;                    /* a knob turned while SEQ was held: tempo or level set, the beat left as is */
     uint8_t master;                      /* this FM-1 started the beat: it sends the clock */
     uint32_t ticks_sent;
@@ -632,6 +629,42 @@ static void note_up(int n, int arp)
     }
 }
 
+/* ACCORDION's black keys, by row: the bottom row (F#3 to A#3) open chords, low (root, fifth, octave, the third on
+ * top); the middle row the patch's own voicing (chord_build); the top row (C#5 to F#5) the chords extended: I maj9,
+ * ii m9, IV 6/9 (and, an octave down, V 9sus4 and vi m11). deg: 0 2 5 7 9; root: the chord's root, in the key */
+static int accordion_row(int row, int deg, int root, int16_t *out, char *name)
+{
+    static const int8_t OPEN_MAJ[4] = {0, 7, 12, 16}, OPEN_MIN[4] = {0, 7, 12, 15};
+    static const struct { int8_t iv[5]; const char *suf; } EXT[12] = {
+        [0] = {{0, 4, 7, 11, 14}, "maj9"}, [2] = {{0, 3, 7, 10, 14}, "m9"}, [5] = {{0, 4, 7, 9, 14}, "6/9"},
+        [7] = {{0, 5, 7, 10, 14}, "9sus4"}, [9] = {{0, 3, 7, 10, 17}, "m11"},
+    };
+    int minor = deg == 2 || deg == 9, i, n;
+    const char *const *nm = chord_flats(set.key) ? NOTE_FLAT : NOTE_SHARP;
+    name[0] = 0;
+    text_cat(name, nm[((root % 12) + 12) % 12]);
+    if (row == 0) {
+        const int8_t *iv = minor ? OPEN_MIN : OPEN_MAJ;
+        while (root > 52)                /* low: the open strings' register */
+            root -= 12;
+        for (i = 0; i < 4; i++)
+            out[i] = (int16_t)(root + iv[i]);
+        if (minor)
+            text_cat(name, "m");
+        n = 4;
+    } else {
+        while (root > 62)                /* around middle C, so a ninth does not shrill */
+            root -= 12;
+        while (root < 50)
+            root += 12;
+        for (i = 0; i < 5; i++)
+            out[i] = (int16_t)(root + EXT[deg].iv[i]);
+        text_cat(name, EXT[deg].suf);
+        n = 5;
+    }
+    return n;
+}
+
 static void key_down(uint32_t k, uint32_t v, int quiet)
 {
     int bass = clamp(53 + (int32_t)k + 12 * set.octave, 0, 127), i;
@@ -647,8 +680,13 @@ static void key_down(uint32_t k, uint32_t v, int quiet)
             if (root > bass + 6)
                 root -= 12;
             v = v * 3u / 4u;             /* (the chord under the tune, softer) */
+            if (k < 7u || k >= 19u)      /* the bottom row and the top: their own voicings */
+                ui.key_n[k] = (uint8_t)accordion_row(k < 7u ? 0 : 2, DEG[pc], root, ui.key_notes[k], name);
+            else
+                ui.key_n[k] = (uint8_t)chord_build(root, set.key, p->chord, ui.key_notes[k], name);
+        } else {
+            ui.key_n[k] = (uint8_t)chord_build(root, set.key, p->chord, ui.key_notes[k], name);
         }
-        ui.key_n[k] = (uint8_t)chord_build(root, set.key, p->chord, ui.key_notes[k], name);
         ui.key_arp[k] = p->mono;
         if (ui.key_n[k])
             eng_bass_root(ui.key_notes[k][0]);   /* the bass plays the chord's lowest note */
@@ -912,11 +950,14 @@ static void input(void)
         if (!(btn & bit) || (ui.btn & bit))
             continue;
         switch (k) {
-        case B_OCTDN:
-            octave_step(-1);
-            break;
+        case B_OCTDN:                    /* (on the boot screen: on its release, unless held to choose the cores) */
         case B_OCTUP:
-            octave_step(1);
+            if (ui.boot_screen) {
+                ui.oct_t = plat_ms();
+                ui.oct_used = 0;
+            } else {
+                octave_step(k == B_OCTUP ? 1 : -1);
+            }
             break;
         case B_PLAY:
             hold_set(!ui.hold);
@@ -987,6 +1028,12 @@ static void input(void)
     }
     if (!(btn >> B_ENV & 1u) && (ui.btn >> B_ENV & 1u))
         eng_fill(0);
+    if (ui.boot_screen && !ui.oct_used) {        /* a short press on the boot screen: the octave, on release */
+        if (!(btn >> B_OCTUP & 1u) && (ui.btn >> B_OCTUP & 1u))
+            octave_step(1);
+        if (!(btn >> B_OCTDN & 1u) && (ui.btn >> B_OCTDN & 1u))
+            octave_step(-1);
+    }
     if (!(btn >> B_SEQ & 1u) && (ui.btn >> B_SEQ & 1u) && !ui.seq_used)
         beat_set(!eng_beat_on());
     if (FM1B_BLE && ui.rec_t) {          /* REC held a second: Bluetooth off or on; a press: link */
@@ -1210,6 +1257,24 @@ void app_frame(void)
     if (((lv > 0.01f && (glide > 0.03f || lv > 0.05f)) || had_beat) && now - ph.last_draw >= 50u)
         ph.dirty = 1;
 #ifdef PHOTO_BOOT
+    ui.boot_screen = intro.on;
+    if (intro.on && !ui.oct_used && (ui.btn >> B_OCTUP & 1u || ui.btn >> B_OCTDN & 1u) && now - ui.oct_t >= 1500u) {
+        int two = (ui.btn >> B_OCTUP & 1u) != 0;   /* held a second and a half on the boot screen: the cores */
+        ui.oct_used = 1;
+        set.two_cores = (uint8_t)two;
+        plat_store_save(OBJ_SETTINGS, &set, sizeof set);
+#ifndef PLAT_HOST
+        if (two && !c1_on)
+            c1_start();
+        else if (!two && c1_on)
+            c1_retire(C1_WHY_OFF);
+        app_say(two ? (c1_on ? "TWO CORES" : "TWO CORES FAILED") : "ONE CORE", two ? (c1_on ? "12 VOICES" : "8 VOICES")
+                                                                                  : "8 VOICES");
+#else
+        app_say(two ? "TWO CORES" : "ONE CORE", two ? "12 VOICES" : "8 VOICES");
+#endif
+        ui.msg_until = now + 3000u;
+    }
     if (intro.on) {                      /* the intro: about 30 frames a second, then the patch's name */
         if (now - intro.t0 >= INTRO_GONE) {
             char a[24], b[24];
@@ -1272,6 +1337,8 @@ int app_expect(const char *what, int *got)
         *got = set.beat_var;
     else if (!strcmp(what, "bass"))
         *got = set.bass;
+    else if (!strcmp(what, "two_cores"))
+        *got = set.two_cores;
     else if (!strcmp(what, "midi_ch"))
         *got = set.midi_ch;
     else if (!strcmp(what, "beat_level"))
