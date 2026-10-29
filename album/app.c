@@ -22,6 +22,7 @@ static uint8_t c1_on;
 static int c1_kick(void) { return 0; }
 static int c1_join(void) { return 1; }
 static int c1_start(void) { return 0; }
+static int c1_report(char *a, char *b) { (void)a; (void)b; return 0; }
 #endif
 
 static const char *const KNOB_NAME[NKNOB] = {"GLIDE", "SWELL", "TONE", "BLUR", "FUZZ", "FUZZ LOW", "FUZZ MID", "FUZZ HIGH"};
@@ -33,7 +34,7 @@ static inline float sine_wave(float x) { return fm_sinf(x * FM_TWO_PI); }
 
 /* --------------------------------------------------------------- settings --- */
 enum { MODE_NOTES, MODE_CHORDS, MODE_ACCORDION };   /* set.chords: how the keys play (ARP) */
-#define SET_MAGIC 0x414C4237u            /* "ALB7": the fuzz's EQ, accordion, the bass (earlier layouts start fresh) */
+#define SET_MAGIC 0x414C4238u            /* "ALB8": the MIDI channel (earlier layouts start fresh) */
 typedef struct {
     uint32_t magic;
     uint8_t patch;
@@ -48,6 +49,7 @@ typedef struct {
     uint8_t beat_var;                    /* LFO: 0 sparse, 1 as written, 2 busy */
     uint8_t bass;                        /* GLO: the auto bass on */
     uint8_t two_cores;                   /* OCT+ held at power-on: the second core tried (until then, one) */
+    uint8_t midi_ch;                     /* 0: every channel in, 1 out; 1..16: that one only, in and out */
     int8_t tempo[MAX_PATCH];             /* each patch's tempo, BPM from its beat's own */
 } settings_t;
 static settings_t set;
@@ -70,6 +72,7 @@ static void settings_defaults(void)
     set.beat_var = 1;
     set.bass = 0;
     set.two_cores = 0;
+    set.midi_ch = 0;
     for (p = 0; p < MAX_PATCH; p++)
         set.tempo[p] = 0;
     for (p = 0; p < MAX_PATCH; p++)
@@ -107,12 +110,15 @@ static volatile int32_t midi_patch_req = -1, midi_beat_req = -1;   /* (CC 21: th
 static volatile uint8_t midi_knob_req[NKNOB], midi_knob_mask, midi_panic_req, midi_hold_req;
 static volatile uint32_t midi_count;
 
+static volatile uint8_t midi_rx_ch;     /* set.midi_ch, for the render's MIDI in */
 static void midi_in(void)
 {
     uint32_t pkt;
     int port;
     while (plat_midi_in(&pkt, &port)) {
         uint32_t st = (pkt >> 8) & 0xFFu, d1 = (pkt >> 16) & 0x7Fu, d2 = (pkt >> 24) & 0x7Fu;
+        if (st < 0xF0u && midi_rx_ch && (st & 0x0Fu) != midi_rx_ch - 1u)
+            continue;                    /* another channel's */
         if (st == 0xF8u || st == 0xFAu || st == 0xFBu || st == 0xFCu) {
             eng_clock_in((int)st);       /* a linked FM-1's beat (or a computer's): its clock, its start and stop */
             continue;
@@ -215,10 +221,11 @@ void app_init(void)
     if (plat_store_load(OBJ_SETTINGS, &set, sizeof set) != (int)sizeof set || set.magic != SET_MAGIC
         || set.octave < -2 || set.octave > 2 || set.ble_off > 1u || set.one_core > 1u || set.key > 11u
         || set.chords > 2u || set.beat_level > 100u || set.fuzz_off > 1u || set.beat_var > 2u || set.bass > 1u
-        || set.two_cores > 1u)
+        || set.two_cores > 1u || set.midi_ch > 16u)
         settings_defaults();
     if (set.patch >= (uint32_t)eng_patch_count())
         set.patch = 0;
+    midi_rx_ch = set.midi_ch;
     eng_patch(set.patch);
     knobs_to_engine();
     beat_to_engine();
@@ -590,6 +597,8 @@ static void speak(void)                  /* a screen reader that asks hears the 
 
 static void midi_send3(uint32_t st, uint32_t d1, uint32_t d2)   /* out over USB and Bluetooth (a linked FM-1) */
 {
+    if (st < 0xF0u)                      /* on the MIDI channel (ALL: on 1) */
+        st = (st & 0xF0u) | (set.midi_ch ? set.midi_ch - 1u : 0u);
     plat_midi_send((st >> 4) | st << 8 | d1 << 16 | d2 << 24, TO_USB | TO_BLE);
 }
 
@@ -732,6 +741,26 @@ static void tempo_step(int32_t d)
 }
 
 #define SHOW_BEAT ((int8_t)NKNOB)         /* the knob bar showing the beat's level */
+#define SHOW_CH ((int8_t)(NKNOB + 1))     /* ... the MIDI channel */
+static void midi_ch_set(int32_t c)       /* EDIT held and SELECT: 0 (ALL), 1 .. 16 */
+{
+    char v[8];
+    set.midi_ch = (uint8_t)clamp(c, 0, 16);
+    midi_rx_ch = set.midi_ch;
+    set_dirty = 1;
+    ui.knob_shown = SHOW_CH;
+    ui.knob_until = plat_ms() + 1500u;
+    ph.dirty = 1;
+    if (ann_on()) {
+        char t[24] = "MIDI CHANNEL ";
+        if (set.midi_ch)
+            int_text(set.midi_ch, v);
+        else
+            v[0] = 'A', v[1] = 'L', v[2] = 'L', v[3] = 0;
+        text_cat(t, v);
+        ann_say(t, 0, ANN_NOW);
+    }
+}
 static void beat_level_set(int32_t v, int send)   /* 0..100; shown as a knob's bar is, sent as CC 21 */
 {
     v = clamp(v, 0, 100);
@@ -936,6 +965,11 @@ static void input(void)
             eng_bass(set.bass);
             app_say("BASS", set.bass ? "ON" : "OFF");
             break;
+        case B_EDIT:                     /* the MIDI channel shown (EDIT held and SELECT sets it) */
+            ui.knob_shown = SHOW_CH;
+            ui.knob_until = plat_ms() + 1500u;
+            ph.dirty = 1;
+            break;
         case B_SEQ:                      /* the beat, on its release (unless its tempo or level was set while held) */
             ui.seq_used = 0;
             break;
@@ -986,6 +1020,8 @@ static void input(void)
         } else if (k == EN_ALGO) {       /* the fuzz, a knob like K1 to K4 */
             int32_t step = (e > 2 || e < -2) ? 10 : 5;
             knob_set(K_FUZZ, (int32_t)set.knob[set.patch][K_FUZZ] + e * step, 1);
+        } else if (k == EN_SELECT && (btn >> B_EDIT & 1u)) {   /* EDIT held: the MIDI channel */
+            midi_ch_set((int32_t)set.midi_ch + (e > 0 ? 1 : -1));
         } else if (k == EN_SELECT && (btn >> B_SEQ & 1u)) {   /* SEQ held: the beat's level */
             ui.seq_used = 1;
             beat_level_step(e * ((e > 2 || e < -2) ? 10 : 5));
@@ -1036,12 +1072,17 @@ static void overlay(uint32_t y0, uint32_t now)
         cv_text(206, 6, &FONT_XS, "LINK", RGB(255, 140, 120));
     if (y0 == 240u - STRIP && ui.knob_shown >= 0 && now < ui.knob_until) {
         uint32_t k = (uint32_t)ui.knob_shown;
-        float val = ui.knob_shown == SHOW_BEAT ? (float)set.beat_level * 0.01f : knob_val(k);
+        float val = ui.knob_shown == SHOW_BEAT ? (float)set.beat_level * 0.01f
+                    : ui.knob_shown == SHOW_CH ? (float)set.midi_ch * (1.0f / 16.0f) : knob_val(k);
         uint32_t w = (uint32_t)(val * 196.0f + 0.5f);
         char v[8];
         shade(10, 38);
-        cv_text(12, 14, &FONT_XS, ui.knob_shown == SHOW_BEAT ? "BEAT" : KNOB_NAME[k], RGB(255, 236, 220));
-        int_text((int32_t)(val * 100.0f + 0.5f), v);
+        cv_text(12, 14, &FONT_XS, ui.knob_shown == SHOW_BEAT ? "BEAT" : ui.knob_shown == SHOW_CH ? "MIDI CHANNEL"
+                : KNOB_NAME[k], RGB(255, 236, 220));
+        if (ui.knob_shown == SHOW_CH && !set.midi_ch)
+            v[0] = 'A', v[1] = 'L', v[2] = 'L', v[3] = 0;
+        else
+            int_text(ui.knob_shown == SHOW_CH ? (int32_t)set.midi_ch : (int32_t)(val * 100.0f + 0.5f), v);
         cv_text(228 - text_w(&FONT_XS, v), 14, &FONT_XS, v, RGB(255, 236, 220));
         cv_rect(12, 32, 216, 6, RGB(70, 20, 30));
         cv_rect(12, 32, (int32_t)w + 20, 6, RGB(240, 60, 60));
@@ -1171,8 +1212,14 @@ void app_frame(void)
 #ifdef PHOTO_BOOT
     if (intro.on) {                      /* the intro: about 30 frames a second, then the patch's name */
         if (now - intro.t0 >= INTRO_GONE) {
+            char a[24], b[24];
             intro.on = 0;
-            show_patch();
+            if (c1_report(a, b)) {       /* a crash with two cores: where it was, for ten seconds */
+                app_say(a, b);
+                ui.msg_until = now + 10000u;
+            } else {
+                show_patch();
+            }
             ph.dirty = 1;
         } else if (now - ph.last_draw >= 33u) {
             ph.dirty = 1;
@@ -1225,6 +1272,8 @@ int app_expect(const char *what, int *got)
         *got = set.beat_var;
     else if (!strcmp(what, "bass"))
         *got = set.bass;
+    else if (!strcmp(what, "midi_ch"))
+        *got = set.midi_ch;
     else if (!strcmp(what, "beat_level"))
         *got = set.beat_level;
     else if (!strcmp(what, "tempo"))

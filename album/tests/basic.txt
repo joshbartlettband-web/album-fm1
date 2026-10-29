@@ -102,3 +102,30 @@ wait 1000
 expect intro 1
 wait 8000
 expect intro 0
+# EDIT held and SELECT: the MIDI channel. On 3, the keys go out on 3 (an octave up: OCT+ was saved above), and channel 1 coming in is not heard
+wait 9000
+press EDIT
+turn SELECT 3
+release EDIT
+wait 60
+expect midi_ch 3
+out
+key w8 down 100
+wait 30
+expect_out USB 92 4F 64
+key w8 up
+wait 6000
+expect voices 0
+midi 90 40 64
+wait 60
+expect voices 0
+midi 92 40 64
+wait 60
+expect voices 1
+midi 82 40 00
+# back to ALL: every channel heard, sent on 1
+press EDIT
+turn SELECT -3
+release EDIT
+wait 60
+expect midi_ch 0
