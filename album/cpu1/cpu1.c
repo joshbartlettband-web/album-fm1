@@ -165,7 +165,12 @@ static int c1_start(void)
     for (i = 0; i < 32u; i++)            /* its interrupt bank: nothing (it runs polled) */
         C1_REG(0x1EEF300u + 4u * i) = 0u;
     c1_step(3u);
+    /* the entry word sits in the reserved top of RAM, which fm1_guard write-protects for this core
+     * once the vectors are in (main_fm1.c): open it for the one write, then close it again */
+    fm1_guard_unlock_top();
     C1_REG(0x01C7FFF8u) = (uint32_t)(uintptr_t)album_cpu1_entry;
+    C1_SYNC();
+    fm1_guard_lock_top();
     c1_step(4u);
     div = C1_REG(0x10008u);
     C1_REG(0x10008u) = div | 8u;
