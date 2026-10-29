@@ -34,6 +34,7 @@ typedef struct {
 static c1_box_t c1_box __attribute__((aligned(32)));
 static struct { uint32_t magic, barred, why; } c1_bar __attribute__((section(".noinit")));
 static uint8_t c1_on;                    /* core 1 is up and taking jobs */
+static uint8_t c1_wait;                  /* two cores wanted, held until the radio's start is over (app.c c1_radio) */
 
 /* the trace: how far the start got, and how many jobs core 1 finished after, in RAM that a crash's restart keeps
  * (.noinit). A crash with two cores leaves it for the next start to show on the screen (app.c), then it is cleared.
@@ -217,6 +218,7 @@ static int c1_start(void)
     }
     c1_step(7u);
     c1_on = 1;
+    eng_voice_cap((int)ENG_VOICES);      /* (eight until now, if it ran on one meanwhile) */
     return 1;
 }
 

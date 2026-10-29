@@ -241,9 +241,10 @@ void app_init(void)
         set.two_cores = 0;               /* it crashed (or would not start) with two: one from now on, kept */
         plat_store_save(OBJ_SETTINGS, &set, sizeof set);
     }
-    if (set.two_cores && !set.one_core)
-        c1_start();
-    else {
+    if (set.two_cores && !set.one_core) {
+        c1_wait = 1;                     /* started from app_frame, once Bluetooth's start is over (c1_radio) */
+        eng_voice_cap(8);
+    } else {
         c1_why = C1_WHY_OFF;
         eng_voice_cap(8);                /* one core: eight voices */
     }
@@ -1180,6 +1181,29 @@ void app_ui_init(void)
 #endif
 }
 
+#ifndef PLAT_HOST
+/* Bluetooth's start and the second core: the radio's calibration draws ~500 ms of high current, during which
+ * what is read from the flash can come back wrong (radio.c, radio_quiet). With core 1 running through it, every
+ * power-on crashed once, core 0 waiting inside the radio's start (shim_delay_us; the screen of the crash itself
+ * garbled), and the restart after it, with Bluetooth skipped, ran fine. So core 1 starts after the radio's start,
+ * and is held (not given up) through any later one. */
+static void c1_radio(void)
+{
+    if (radio_quiet && c1_on) {
+        uint32_t f = irq_save();         /* (the render must not ask a held core for its half) */
+        c1_on = 0;
+        c1_hold();
+        irq_restore(f);
+        eng_voice_cap(8);
+        c1_wait = 1;
+    } else if (c1_wait && !radio_quiet) {
+        c1_wait = 0;
+        if (set.two_cores && !set.one_core)
+            c1_start();
+    }
+}
+#endif
+
 void app_frame(void)
 {
     uint32_t now = plat_ms(), k;
@@ -1187,6 +1211,9 @@ void app_frame(void)
     static uint32_t last_ms;
     static uint8_t had_msg, had_knob, had_link, had_beat;
     uint8_t link = (uint8_t)(FM1B_BLE_CENTRAL && plat_ble_device() == BLE_DEV_READY);
+#ifndef PLAT_HOST
+    c1_radio();
+#endif
     input();
     speak();
     voices_back(now);
@@ -1277,7 +1304,11 @@ void app_frame(void)
     }
     {   /* every boot: which it is running on, a moment after the photo comes up */
         static uint8_t said_cores;
-        if (intro.on && !said_cores && now - intro.t0 >= 600u && now >= ui.msg_until) {
+        if (intro.on && !said_cores && now - intro.t0 >= 600u && now >= ui.msg_until
+#ifndef PLAT_HOST
+            && !c1_wait                  /* (settled: after Bluetooth's start) */
+#endif
+            ) {
 #ifndef PLAT_HOST
             int two = c1_on;
 #else
