@@ -97,11 +97,13 @@ jobs:
                  | sed -e 's/%/%25/g' | sed ':a;N;$!ba;s/\n/%0A/g')"
           echo "::notice title=Crash addresses (with Bluetooth)::${msg}"
           if [ -f album/tools/crash-disasm.txt ]; then   # (start and stop addresses: the code around a crash)
-            read -r a b < album/tools/crash-disasm.txt
-            dis="$("$JIELI_TOOLCHAIN/common/bin/objdump" -d -mcpu=r3 --start-address=0x$a --stop-address=0x$b \
-                   album/build/album-ble.elf 2>&1 | grep -E "^ *2003[5-7][0-9a-f]{2}:|^c1_start" | head -n 200 \
-                   | sed -e 's/%/%25/g' | sed ':a;N;$!ba;s/\n/%0A/g')"
-            echo "::notice title=Code around the crash::${dis}"
+            while read -r a b; do       # (one window a line)
+              [ -n "$a" ] || continue
+              dis="$("$JIELI_TOOLCHAIN/common/bin/objdump" -d -mcpu=r3 --start-address=0x$a --stop-address=0x$b \
+                     album/build/album-ble.elf 2>&1 | grep -E "^ *[0-9a-f]{7}:|^[0-9a-f]{8} <" | head -n 200 \
+                     | sed -e 's/%/%25/g' | sed ':a;N;$!ba;s/\n/%0A/g')"
+              echo "::notice title=Code around the crash ($a)::${dis}"
+            done < album/tools/crash-disasm.txt
           fi
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02   # v4.6.2
         with:
