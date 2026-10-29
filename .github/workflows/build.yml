@@ -91,6 +91,11 @@ jobs:
           name: album-${{ env.V }}
           path: album/build/*.fwsc
           if-no-files-found: error
+      - name: A crash screen's addresses, as functions (album/tools/crash-addresses.txt)
+        run: |
+          msg="$(python3 album/tools/addr2sym.py album/build/album-ble.elf $(cat album/tools/crash-addresses.txt) 2>&1 \
+                 | sed -e 's/%/%25/g' | sed ':a;N;$!ba;s/\n/%0A/g')"
+          echo "::notice title=Crash addresses (with Bluetooth)::${msg}"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02   # v4.6.2
         with:
           name: album-${{ env.V }}-symbols   # the ELFs, for reading a crash screen's addresses
