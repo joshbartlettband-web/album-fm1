@@ -152,7 +152,7 @@ static void c1_retire(uint32_t why)
 
 static int c1_start(void)
 {
-    uint32_t i, div, t0, bus, bmask = 0x003F0030u;
+    uint32_t i, div, t0, bus, top, bmask = 0x003F0030u;
     __asm__("" : "+r"(bmask));           /* (as in c1_hold: kept out of the build's ROM-address check) */
     if (c1_bar.magic == C1_BAR_MAGIC && c1_bar.barred) {
         c1_why = C1_WHY_BARRED;
@@ -172,10 +172,14 @@ static int c1_start(void)
     c1_step(3u);
     /* the entry word sits in the reserved top of RAM, which fm1_guard write-protects for this core
      * once the vectors are in (main_fm1.c): open it for the one write, then close it again */
-    fm1_guard_unlock_top();
+    top = FM1_C0_WR_LIMIT_EN & 4u;       /* locked now? (at power-on, app_init runs before the platform locks it:
+                                          * locking it here then stopped audio_init's vector write, every boot) */
+    if (top)
+        fm1_guard_unlock_top();
     C1_REG(0x01C7FFF8u) = (uint32_t)(uintptr_t)album_cpu1_entry;
     C1_SYNC();
-    fm1_guard_lock_top();
+    if (top)
+        fm1_guard_lock_top();
     c1_step(4u);
     div = C1_REG(0x10008u);
     C1_REG(0x10008u) = div | 8u;
