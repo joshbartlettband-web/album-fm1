@@ -1,0 +1,54 @@
+# Album: the boot screen's controls, and ACCORDION's three rows (album_host boot.txt OUTDIR)
+wait 1000
+expect intro 1
+# a short OCT+ on the boot screen: the octave, on release
+tap OCT+
+wait 60
+expect octave 1
+tap OCT-
+wait 60
+expect octave 0
+# OCT+ held a second and a half on the boot screen: two cores (saved); the octave left alone
+listen
+press OCT+
+wait 1700
+release OCT+
+wait 60
+said TWO CORES
+expect two_cores 1
+expect octave 0
+# and OCT- held: one again
+press OCT-
+wait 1700
+release OCT-
+wait 60
+said ONE CORE
+expect two_cores 0
+wait 6000
+expect intro 0
+# ACCORDION (ARP once from CHORDS), in C: the bottom row open and low, the middle the patch's, the top extended
+tap ARP
+wait 60
+expect chords 2
+listen
+key b0 down 100
+wait 60
+said F
+expect notes 4
+key b0 up
+wait 30
+key b8 down 100
+wait 60
+said Cmaj9
+expect notes 5
+key b8 up
+wait 30
+key b9 down 100
+wait 60
+said Dm9
+key b9 up
+wait 30
+key b10 down 100
+wait 60
+said F6/9
+key b10 up

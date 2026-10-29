@@ -40,7 +40,8 @@ static uint8_t c1_on;                    /* core 1 is up and taking jobs */
  * Steps: 1 held, 2 mailbox set, 3 interrupt bank cleared, 4 entry address written, 5 clock divider set, 6 core 1
  * released, 7 core 1 answered from its own code; 8 its first job done and sane */
 #define C1_TRACE_MAGIC 0x54523143u       /* "C1RT" */
-static struct { uint32_t magic, step, jobs, crashed; } c1_trace __attribute__((section(".noinit")));
+static struct { uint32_t magic, step, jobs, crashed, sum; } c1_trace __attribute__((section(".noinit")));
+#define C1_TRACE_SUM() (c1_trace.magic ^ c1_trace.step * 0x9E3779B1u ^ c1_trace.jobs * 0x85EBCA6Bu ^ c1_trace.crashed ^ 0x5A5AA5A5u)
 static void c1_step(uint32_t s)
 {
     c1_trace.magic = C1_TRACE_MAGIC;
@@ -48,6 +49,7 @@ static void c1_step(uint32_t s)
     c1_trace.crashed = 0;
     if (s <= 7u)
         c1_trace.jobs = 0;
+    c1_trace.sum = C1_TRACE_SUM();
 }
 static uint32_t c1_seq, c1_faults, c1_jobs, c1_why;
 enum { C1_WHY_NONE, C1_WHY_NOSTART, C1_WHY_STALL, C1_WHY_RESULTS, C1_WHY_CRASH, C1_WHY_BARRED, C1_WHY_OFF };
@@ -211,6 +213,7 @@ static int c1_join(void)
     if (c1_trace.step == 7u && eng_b_sane())
         c1_trace.step = 8u;
     c1_trace.jobs = c1_jobs;
+    c1_trace.sum = C1_TRACE_SUM();
     if (!eng_b_sane()) {
         eng_drop_b();
         if (++c1_faults >= 3u)
@@ -227,8 +230,11 @@ static void int_text(int32_t v, char *b);
 static int c1_report(char *a, char *b)
 {
     char n[12];
-    if (c1_trace.magic != C1_TRACE_MAGIC || !c1_trace.crashed)
+    if (c1_trace.magic != C1_TRACE_MAGIC || c1_trace.crashed != 1u || c1_trace.sum != C1_TRACE_SUM()
+        || c1_trace.step < 1u || c1_trace.step > 8u || c1_trace.jobs > 100000000u) {
+        c1_trace.magic = 0;              /* (nothing, or not whole: said nothing) */
         return 0;
+    }
     a[0] = b[0] = 0;
     text_cat(a, "CORE 2 CRASHED");
     if (c1_trace.step >= 8u) {
@@ -253,7 +259,10 @@ void app_fault(const fm1_crash_t *c)     /* a crash: core 1 held, and one core u
 {
     (void)c;
     if (c1_trace.magic == C1_TRACE_MAGIC && c1_trace.step >= 1u && (c1_on || c1_trace.step < 7u))
+    {
         c1_trace.crashed = 1;            /* it happened with core 1 starting or running: the next start says so */
+        c1_trace.sum = C1_TRACE_SUM();
+    }
     if (c1_on)
         c1_retire(C1_WHY_CRASH);
     else if (c1_trace.crashed)           /* (mid-start: given up all the same) */
