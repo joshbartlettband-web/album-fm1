@@ -1,5 +1,7 @@
 # Album: the boot screen's controls, and ACCORDION's three rows (album_host boot.txt OUTDIR)
+listen
 wait 1000
+said ONE CORE
 expect intro 1
 # a short OCT+ on the boot screen: the octave, on release
 tap OCT+
