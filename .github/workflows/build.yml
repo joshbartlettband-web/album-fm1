@@ -34,7 +34,7 @@ jobs:
           mkdir -p out
           for t in album/tests/*.txt; do
             echo "== $t"
-            album/build/host/album_host "$t" out
+            album/build/host/album_host "$t" out || exit 1   # (a failed test fails the build)
           done
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02   # v4.6.2
         with:
