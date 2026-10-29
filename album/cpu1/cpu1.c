@@ -41,6 +41,9 @@ static uint8_t c1_on;                    /* core 1 is up and taking jobs */
  * released, 7 core 1 answered from its own code; 8 its first job done and sane */
 #define C1_TRACE_MAGIC 0x54523143u       /* "C1RT" */
 static struct { uint32_t magic, step, jobs, crashed, sum; } c1_trace __attribute__((section(".noinit")));
+/* core 1 writes this first thing in its own code: a crash at step 6 then says whether it got that far */
+#define C1_IN_MAGIC 0x494E3143u          /* "C1NI" */
+static volatile uint32_t c1_in __attribute__((section(".noinit")));
 #define C1_TRACE_SUM() (c1_trace.magic ^ c1_trace.step * 0x9E3779B1u ^ c1_trace.jobs * 0x85EBCA6Bu ^ c1_trace.crashed ^ 0x5A5AA5A5u)
 static void c1_step(uint32_t s)
 {
@@ -104,6 +107,7 @@ void __attribute__((section(".c1_text"), noinline, noreturn, used)) album_cpu1_m
 {
     uint32_t last = 0, lo = (uint32_t)(uintptr_t)album_cpu1_stacks_lo + 256u,
              hi = (uint32_t)(uintptr_t)album_cpu1_stacks_hi - 1u;
+    c1_in = C1_IN_MAGIC;                 /* (got here: see c1_report) */
     C1_REG(0x1EEF2D8u) = hi;             /* its own stack limits, as core 0 has */
     C1_REG(0x1EEF2DCu) = lo;
     C1_REG(0x1EEF2E0u) = hi;
@@ -148,7 +152,8 @@ static void c1_retire(uint32_t why)
 
 static int c1_start(void)
 {
-    uint32_t i, div, t0;
+    uint32_t i, div, t0, bus, bmask = 0x003F0030u;
+    __asm__("" : "+r"(bmask));           /* (as in c1_hold: kept out of the build's ROM-address check) */
     if (c1_bar.magic == C1_BAR_MAGIC && c1_bar.barred) {
         c1_why = C1_WHY_BARRED;
         eng_voice_cap(8);
@@ -176,6 +181,18 @@ static int c1_start(void)
     C1_REG(0x10008u) = div | 8u;
     C1_SYNC();
     c1_step(5u);
+    c1_in = 0;
+    /* The debug unit's guards are shared by both cores. Released, core 1 starts in the chip's boot ROM
+     * (0x01E00000..) and reads the entry word there: the PC window of fm1_guard (XIP and .ram_text only) stopped
+     * it on its second instruction (crash PC 01E00004). The XIP window now starts at the ROM (between the two is
+     * unmapped, which the bus guard still catches). The bus traps are masked over the release itself, as c1_hold
+     * does, and their late flag cleared after. */
+    fm1__dbg_unlock();
+    FM1_PC_LIMIT0_L = 0x01E00000u;
+    bus = FM1_DBG_EN;
+    FM1_DBG_EN = bus & ~bmask;
+    C1_SYNC();
+    fm1__dbg_lock();
     C1_REG(0x1EEE004u) = C1_REG(0x1EEE004u) | 8u;
     C1_REG(0x1EEE004u) = C1_REG(0x1EEE004u) & ~2u;
     c1_step(6u);
@@ -184,6 +201,12 @@ static int c1_start(void)
         ;
     C1_REG(0x10008u) = div;
     C1_SYNC();
+    fm1__dbg_unlock();
+    FM1_DBG_MSG_CLR = bmask;
+    C1_SYNC();
+    FM1_DBG_EN = bus;
+    C1_SYNC();
+    fm1__dbg_lock();
     if (!c1_load(&c1_box.ready)) {
         c1_retire(C1_WHY_NOSTART);
         return 0;
@@ -249,6 +272,8 @@ static int c1_report(char *a, char *b)
         text_cat(b, "STEP ");
         int_text((int32_t)c1_trace.step, n);
         text_cat(n, " OF 7");
+        if (c1_trace.step == 6u)
+            text_cat(n, c1_in == C1_IN_MAGIC ? " IN" : " ROM");   /* core 2 reached its own code, or not */
     }
     text_cat(b, n);
     c1_trace.magic = 0;
