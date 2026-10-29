@@ -46,6 +46,7 @@ shows at the top for a moment when you choose it, and a knob's value shows at th
 | LFO | The beat: SPARSE, AS WRITTEN, BUSY (lit unless as written) |
 | GLO | The auto bass on or off (lit while on) |
 | SEQ | The patch's beat on or off (blinks with it). Held: ALGORITHM sets the tempo, SELECT the beat's level |
+| EDIT | Shows the MIDI channel. Held: SELECT sets it (section 9) |
 | PLAY | Hold: the notes keep sounding after you let go (lit green). Again: let go. |
 | OCT- / OCT+ | The octave, two down to two up |
 | HOME | This patch's five knobs and tempo back where it starts |
@@ -209,7 +210,12 @@ stops the sound for a moment (the flash is written), so save between phrases.
 
 ## 9. MIDI
 
-In over USB, Bluetooth and the TRS jack; out over USB and Bluetooth. Any channel.
+In over USB, Bluetooth and the TRS jack; out over USB and Bluetooth.
+
+**The channel.** Hold EDIT and turn SELECT: ALL, then 1 to 16. On ALL (the start), Album hears every channel and sends
+on 1. On a number, it hears only that channel and sends everything on it: the keys and chords, the knobs, the
+patch, hold. Clock, start and stop have no channel, so the beat keeps time with anything. It is saved with SAVE.
+Two linked FM-1s need the same channel, or ALL.
 
 | Message | In | Out |
 | --- | --- | --- |
@@ -232,7 +238,11 @@ and played fine). So Album starts on one core, with eight voices.
 
 To try two cores, hold OCT+ while switching on; Album remembers it. Hold OCT- while switching on to go back to one.
 If the second core does not start, stalls, or gets its results wrong (some FM-1s' second cores now and then misread
-memory), Album gives it up and plays everything on one core until the next power-off.
+memory), Album gives it up and plays everything on one core until the next power-off. If it crashes, Album goes
+back to one core for good, and after the boot screen it shows for ten seconds how far the second core got:
+CORE 2 CRASHED, then STEP 1 OF 7 to STEP 7 OF 7 (it crashed while starting) or RUNNING, BLOCK and a number (it
+started, and crashed after that many blocks of sound). A photo of that screen, and of the RESTARTED AFTER A CRASH
+line before it, says what to fix.
 
 ## 11. Troubleshooting
 

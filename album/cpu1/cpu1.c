@@ -34,6 +34,21 @@ typedef struct {
 static c1_box_t c1_box __attribute__((aligned(32)));
 static struct { uint32_t magic, barred, why; } c1_bar __attribute__((section(".noinit")));
 static uint8_t c1_on;                    /* core 1 is up and taking jobs */
+
+/* the trace: how far the start got, and how many jobs core 1 finished after, in RAM that a crash's restart keeps
+ * (.noinit). A crash with two cores leaves it for the next start to show on the screen (app.c), then it is cleared.
+ * Steps: 1 held, 2 mailbox set, 3 interrupt bank cleared, 4 entry address written, 5 clock divider set, 6 core 1
+ * released, 7 core 1 answered from its own code; 8 its first job done and sane */
+#define C1_TRACE_MAGIC 0x54523143u       /* "C1RT" */
+static struct { uint32_t magic, step, jobs, crashed; } c1_trace __attribute__((section(".noinit")));
+static void c1_step(uint32_t s)
+{
+    c1_trace.magic = C1_TRACE_MAGIC;
+    c1_trace.step = s;
+    c1_trace.crashed = 0;
+    if (s <= 7u)
+        c1_trace.jobs = 0;
+}
 static uint32_t c1_seq, c1_faults, c1_jobs, c1_why;
 enum { C1_WHY_NONE, C1_WHY_NOSTART, C1_WHY_STALL, C1_WHY_RESULTS, C1_WHY_CRASH, C1_WHY_BARRED, C1_WHY_OFF };
 
@@ -138,19 +153,25 @@ static int c1_start(void)
         return 0;
     }
     c1_hold();
+    c1_step(1u);
     c1_store(&c1_box.ready, 0u);
     c1_store(&c1_box.req, 0u);
     c1_store(&c1_box.check, C1_MAGIC);
     c1_store(&c1_box.done, 0u);
     c1_seq = 0;
+    c1_step(2u);
     for (i = 0; i < 32u; i++)            /* its interrupt bank: nothing (it runs polled) */
         C1_REG(0x1EEF300u + 4u * i) = 0u;
+    c1_step(3u);
     C1_REG(0x01C7FFF8u) = (uint32_t)(uintptr_t)album_cpu1_entry;
+    c1_step(4u);
     div = C1_REG(0x10008u);
     C1_REG(0x10008u) = div | 8u;
     C1_SYNC();
+    c1_step(5u);
     C1_REG(0x1EEE004u) = C1_REG(0x1EEE004u) | 8u;
     C1_REG(0x1EEE004u) = C1_REG(0x1EEE004u) & ~2u;
+    c1_step(6u);
     t0 = plat_ticks24();
     while (!c1_load(&c1_box.ready) && plat_ticks24() - t0 < 10000u * PLAT_TICKS_PER_US)
         ;
@@ -160,6 +181,7 @@ static int c1_start(void)
         c1_retire(C1_WHY_NOSTART);
         return 0;
     }
+    c1_step(7u);
     c1_on = 1;
     return 1;
 }
@@ -186,12 +208,39 @@ static int c1_join(void)
             return 0;
         }
     c1_jobs++;
+    if (c1_trace.step == 7u && eng_b_sane())
+        c1_trace.step = 8u;
+    c1_trace.jobs = c1_jobs;
     if (!eng_b_sane()) {
         eng_drop_b();
         if (++c1_faults >= 3u)
             c1_retire(C1_WHY_RESULTS);
         return 0;
     }
+    return 1;
+}
+
+static void text_cat(char *d, const char *s);   /* (app.c's, further down the unity build) */
+static void int_text(int32_t v, char *b);
+
+/* the last start's crash, if core 1 was in it: a, b the screen's two lines; 1 = there is one (then forgotten) */
+static int c1_report(char *a, char *b)
+{
+    char n[12];
+    if (c1_trace.magic != C1_TRACE_MAGIC || !c1_trace.crashed)
+        return 0;
+    a[0] = b[0] = 0;
+    text_cat(a, "CORE 2 CRASHED");
+    if (c1_trace.step >= 8u) {
+        text_cat(b, "RUNNING, BLOCK ");
+        int_text((int32_t)c1_trace.jobs, n);
+    } else {
+        text_cat(b, "STEP ");
+        int_text((int32_t)c1_trace.step, n);
+        text_cat(n, " OF 7");
+    }
+    text_cat(b, n);
+    c1_trace.magic = 0;
     return 1;
 }
 
@@ -203,6 +252,10 @@ void app_cstart(void)                    /* first thing after any reset: core 1 
 void app_fault(const fm1_crash_t *c)     /* a crash: core 1 held, and one core until power-off */
 {
     (void)c;
+    if (c1_trace.magic == C1_TRACE_MAGIC && c1_trace.step >= 1u && (c1_on || c1_trace.step < 7u))
+        c1_trace.crashed = 1;            /* it happened with core 1 starting or running: the next start says so */
     if (c1_on)
         c1_retire(C1_WHY_CRASH);
+    else if (c1_trace.crashed)           /* (mid-start: given up all the same) */
+        c1_retire(C1_WHY_NOSTART);
 }
