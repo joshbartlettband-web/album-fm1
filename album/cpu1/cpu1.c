@@ -113,8 +113,8 @@ void __attribute__((section(".c1_text"), noinline, noreturn, used)) album_cpu1_m
     uint32_t last = 0, lo = (uint32_t)(uintptr_t)album_cpu1_stacks_lo + 256u,
              hi = (uint32_t)(uintptr_t)album_cpu1_stacks_hi - 1u;
     c1_in = C1_IN_MAGIC;                 /* (got here: see c1_report) */
-    (void)lo;                            /* (its own stack limits, 0x1EEF2D0.., are left off: one unknown fewer
-    (void)hi;                             * while its crashes are chased) */
+    (void)lo;                            /* (its own stack limits, 0x1EEF2D0.., are left off: one unknown fewer */
+    (void)hi;                            /*  while its crashes are chased) */
     c1_store(&c1_box.ready, 1u);
     for (;;) {
         uint32_t r = c1_load(&c1_box.req);
