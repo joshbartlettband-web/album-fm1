@@ -1195,6 +1195,7 @@ static void c1_radio(void)
         c1_on = 0;
         c1_hold();
         irq_restore(f);
+        c1_bus_back();
         eng_voice_cap(8);
         c1_wait = 1;
     } else if (c1_wait && !radio_quiet) {
