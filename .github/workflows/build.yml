@@ -100,7 +100,12 @@ jobs:
             while read -r a b; do       # (one window a line)
               [ -n "$a" ] || continue
               if [ "$a" = sym ]; then   # ("sym NAME": one function, wherever it runs from)
-                raw="$("$JIELI_TOOLCHAIN/common/bin/objdump" -d -mcpu=r3 --disassemble-symbols="$b" album/build/album-ble.elf 2>&1)"
+                se="$("$JIELI_TOOLCHAIN/common/bin/nm" album/build/album-ble.elf | awk -v n="$b" '$3==n{print $1}' | head -n 1)"
+                raw="$("$JIELI_TOOLCHAIN/common/bin/objdump" --version 2>&1 | head -n 2; \
+                       "$JIELI_TOOLCHAIN/common/bin/objdump" -h album/build/album-ble.elf 2>&1 | grep -E "ram_text|\.text" ; \
+                       echo "sym $b at $se"; \
+                       "$JIELI_TOOLCHAIN/common/bin/objdump" -D -j .ram_text -mcpu=r3 --start-address=0x$se \
+                       --stop-address=$(printf '0x%x' $((0x$se + 0xC0))) album/build/album-ble.elf 2>&1 || true)"
               else
                 raw="$("$JIELI_TOOLCHAIN/common/bin/objdump" -d -mcpu=r3 --start-address=0x$a --stop-address=0x$b \
                        album/build/album-ble.elf 2>&1)"
