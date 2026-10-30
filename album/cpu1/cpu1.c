@@ -142,6 +142,20 @@ void __attribute__((section(".c1_text"), noinline, noreturn, used)) album_cpu1_m
     }
 }
 
+/* M-VAVE's supply setup (supply.h), run once and only when two cores are asked for: one core keeps the supply
+ * fm1-base sets, as tested. Core 1 is held whenever this runs (c1_start holds it first, and so does every boot). */
+static void c1_supply(void)
+{
+    static uint8_t done;
+    uint32_t f;
+    if (done)
+        return;
+    done = 1;
+    f = irq_save();
+    fm1_supply_ok = (uint8_t)fm1_supply_stock();
+    irq_restore(f);
+}
+
 /* core 1 held: the bus traps back as they were, once the hold's own late flag has come and gone */
 static void c1_bus_back(void)
 {
@@ -208,7 +222,8 @@ static int c1_start(void)
         eng_voice_cap(8);
         return 0;
     }
-    if (!fm1_supply_ok) {                /* the stock supply setup did not take (main_fm1.c): one core */
+    c1_supply();
+    if (!fm1_supply_ok) {                /* the stock supply setup did not take (supply.h): one core */
         c1_why = C1_WHY_SUPPLY;
         eng_voice_cap(8);
         return 0;

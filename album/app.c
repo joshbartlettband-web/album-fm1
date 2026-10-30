@@ -234,11 +234,6 @@ void app_init(void)
     eng_beat_var(set.beat_var);
     eng_bass(set.bass);
 #ifndef PLAT_HOST
-    {   /* M-VAVE's own supply setup (cpu1/supply.h), core 1 still held: two cores only when it took */
-        uint32_t f = irq_save();
-        fm1_supply_ok = (uint8_t)fm1_supply_stock();
-        irq_restore(f);
-    }
     /* one core unless asked: the second core's start hung a cold boot on hardware (a crash, then a restart on one
      * core). OCT+ held through the boot screen tries two cores and remembers it; OCT- held puts it back to one
      * (cores_hold, app_frame: the panel is not read yet this early) */
@@ -1437,6 +1432,7 @@ void app_frame(void)
         plat_store_save(OBJ_SETTINGS, &set, sizeof set);
 #ifndef PLAT_HOST
         if (two && !c1_on) {
+            c1_supply();                 /* (M-VAVE's supply setup, once: only for two cores) */
             c1_unbar();
             if (radio_quiet)
                 c1_wait = 1;             /* (Bluetooth still starting: c1_radio starts it after) */
