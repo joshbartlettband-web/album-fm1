@@ -1,1 +1,1 @@
-01C01B60 01C01C40
+sym album_cpu1_main

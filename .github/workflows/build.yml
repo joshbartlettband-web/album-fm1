@@ -99,8 +99,13 @@ jobs:
           if [ -f album/tools/crash-disasm.txt ]; then   # (start and stop addresses: the code around a crash)
             while read -r a b; do       # (one window a line)
               [ -n "$a" ] || continue
-              dis="$("$JIELI_TOOLCHAIN/common/bin/objdump" -D -mcpu=r3 --start-address=0x$a --stop-address=0x$b \
-                     album/build/album-ble.elf 2>&1 | grep -E "^ *[0-9a-f]{7}:|^[0-9a-f]{8} <" | head -n 200 \
+              if [ "$a" = sym ]; then   # ("sym NAME": one function, wherever it runs from)
+                raw="$("$JIELI_TOOLCHAIN/common/bin/objdump" -d -mcpu=r3 --disassemble-symbols="$b" album/build/album-ble.elf 2>&1)"
+              else
+                raw="$("$JIELI_TOOLCHAIN/common/bin/objdump" -d -mcpu=r3 --start-address=0x$a --stop-address=0x$b \
+                       album/build/album-ble.elf 2>&1)"
+              fi
+              dis="$(printf '%s\n' "$raw" | grep -vE "^ *[0-9a-f]{7}:    [0-9a-f]{2}( [0-9a-f]{2})? +<" | head -n 200 \
                      | sed -e 's/%/%25/g' | sed ':a;N;$!ba;s/\n/%0A/g')"
               echo "::notice title=Code around the crash ($a)::${dis}"
             done < album/tools/crash-disasm.txt
