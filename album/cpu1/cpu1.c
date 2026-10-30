@@ -59,7 +59,8 @@ static void c1_step(uint32_t s)
     c1_trace.sum = C1_TRACE_SUM();
 }
 static uint32_t c1_seq, c1_faults, c1_jobs, c1_why;
-enum { C1_WHY_NONE, C1_WHY_NOSTART, C1_WHY_STALL, C1_WHY_RESULTS, C1_WHY_CRASH, C1_WHY_BARRED, C1_WHY_OFF };
+enum { C1_WHY_NONE, C1_WHY_NOSTART, C1_WHY_STALL, C1_WHY_RESULTS, C1_WHY_CRASH, C1_WHY_BARRED, C1_WHY_OFF,
+       C1_WHY_SUPPLY };
 
 extern uint8_t album_cpu1_stacks_lo[], album_cpu1_stacks_hi[];
 static void (*volatile c1_job)(void) = eng_voices_b;   /* core 1's job, called through this (see album_cpu1_main) */
@@ -190,6 +191,7 @@ static const char *c1_fail_text(void)
     case C1_WHY_RESULTS: return "BAD RESULTS";
     case C1_WHY_CRASH: return "CRASHED";
     case C1_WHY_BARRED: return "BARRED";
+    case C1_WHY_SUPPLY: return "SUPPLY NOT SET";
     default: return "8 VOICES";
     }
 }
@@ -200,6 +202,11 @@ static int c1_start(void)
     __asm__("" : "+r"(bmask));           /* (as in c1_hold: kept out of the build's ROM-address check) */
     if (c1_bar.magic == C1_BAR_MAGIC && c1_bar.barred) {
         c1_why = C1_WHY_BARRED;
+        eng_voice_cap(8);
+        return 0;
+    }
+    if (!fm1_supply_ok) {                /* the stock supply setup did not take (main_fm1.c): one core */
+        c1_why = C1_WHY_SUPPLY;
         eng_voice_cap(8);
         return 0;
     }
