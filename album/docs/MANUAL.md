@@ -18,7 +18,7 @@ photographs they came from, and each sound moves its photo as you play. Edition 
 7. Two FM-1s as one
 8. Saving
 9. MIDI
-10. The second core
+10. One core, and the second
 11. Troubleshooting
 
 ---
@@ -46,7 +46,7 @@ shows at the top for a moment when you choose it, and a knob's value shows at th
 | LFO | The beat: SPARSE, AS WRITTEN, BUSY (lit unless as written) |
 | GLO | The auto bass on or off (lit while on) |
 | SEQ | The patch's beat on or off (blinks with it). Held: ALGORITHM sets the tempo, SELECT the beat's level |
-| EDIT | Shows the MIDI channel. Held: SELECT sets it (section 9) |
+| EDIT | Shows the MIDI channel. Held: SELECT sets it (section 9), and the top of the screen shows how hard the FM-1 is working (section 10) |
 | PLAY | Hold: the notes keep sounding after you let go (lit green). Again: let go. |
 | OCT- / OCT+ | The octave, two down to two up |
 | HOME | This patch's five knobs and tempo back where it starts |
@@ -81,7 +81,7 @@ Each patch has its own photo, and its sound comes from that photo.
 | 1 | RED DOOR | A fire pit at night, washed red | The main glide chord bed: three detuned saws bent all the time, mostly reverse reverb |
 | 2 | MAPLE | The sun through a red maple leaf | A soft reed organ that sways slowly, warm on tape |
 | 3 | DAHLIA | Pink dahlias in full sun | Bright fuzz chords bent hard, the wash behind them |
-| 4 | FLAME | A flame of lights in a red room at night | A low chord chopped by a fast tremolo, each side flickering at its own speed |
+| 4 | FLAME | A flame of lights in a red room at night | A low chord chopped by a tremolo in time with the tempo: sixteenths on the left, triplets on the right |
 | 5 | CLEMATIS | A bush of small white flowers | A breathy pad, half tone and half air; each note a cloud |
 | 6 | WHIRL | A room swung past the camera | A wide chord bent deep and fast, carried from side to side, almost all reverb |
 | 7 | WINDOW | A dark room, rain on the glass, a tree lit outside | A soft electric piano rocking side to side, rain ticking on the pane |
@@ -115,8 +115,12 @@ Every key plays something, the black keys too. In the key of C:
 | A# | Bb | the flat seventh |
 | B | G/B | V over its third, in place of a diminished chord |
 
-The flat seventh, flat sixth, flat third and major second are all on Only Tomorrow. The chord's name shows on the
-screen as you play it.
+The flat seventh, flat sixth, flat third and major second are all on Only Tomorrow.
+
+**On the screen.** The chord you play is spelled out over the photo: D major reads D - D F# A, its name, then its
+notes from the root up through the third, fifth, seventh and on. Each note has its own colour, the same wherever it
+appears (D is always yellow, A always violet), so a change of chord shows as a change of colours. On FLAME's red room
+the letters turn to shades of red instead, dark to pale by the same order.
 
 **Accordion.** Press ARP once more and the black keys hold chords while the white keys play a tune over them, as on
 an accordion. The black keys play the key's five most used chords: C# the I chord, D# the ii, F# the IV, G# the V,
@@ -232,26 +236,31 @@ Two linked FM-1s need the same channel, or ALL.
 
 Nothing received is sent back out, so two linked FM-1s never echo.
 
-## 10. The second core
+## 10. One core, and the second
 
-The FM-1's chip has two cores. Album can run half of the voices and the reverse reverb on the second one, for twelve
-voices instead of eight, but starting it hung a power-on on a real FM-1 (it crashed, then started again on one core
-and played fine). So Album starts on one core, with eight voices.
+Album plays on one of the chip's two cores, with eight voices. The boot screen says which: ONE CORE, 8 VOICES.
 
-To try two cores, hold OCT+ on the boot screen for a second and a half: TWO CORES, 12 VOICES (or TWO CORES FAILED,
-if it would not start). Album remembers it. Hold OCT- there the same way for ONE CORE. A short press of OCT+ or OCT-
-on the boot screen still changes the octave, when you let go.
-If the second core does not start, stalls, or gets its results wrong (some FM-1s' second cores now and then misread
-memory), Album gives it up and plays everything on one core until the next power-off. If it crashes, Album goes
-back to one core for good, and after the boot screen it shows for ten seconds how far the second core got:
-CORE 2 CRASHED, then STEP 1 OF 7 to STEP 7 OF 7 (it crashed while starting) or RUNNING, BLOCK and a number (it
-started, and crashed after that many blocks of sound). A photo of that screen, and of the RESTARTED AFTER A CRASH
-line before it, says what to fix.
+**How hard it is working.** Hold EDIT: the top of the screen shows CPU (the sound's share of the time, now), PEAK
+(the most since you pressed EDIT) and V (voices sounding). Near 100 the FM-1 starts dropping a voice to keep up.
+
+**Two cores (experimental).** The second core can take half the voices, for twelve. On some FM-1s it works; on
+others, with both cores busy, the chip now and then reads its memory back wrong, and then it crashes. Other FM-1
+firmwares (Melodee, Jangada, X0X, Felucca) have found the same: it depends on the unit. To try it, hold OCT+ on the
+boot screen for a second and a half: TWO CORES, 12 VOICES, or TWO CORES FAILED and why. Album remembers it. Hold
+OCT- there the same way for ONE CORE. A short press of OCT+ or OCT- on the boot screen still changes the octave.
+
+With two cores on, Album first sets the FM-1's power supply up the way M-VAVE's own firmware does (as Melodee found),
+and starts the second core only after Bluetooth has started. If the second core crashes, stalls or gets a result
+wrong, Album goes back to one core and remembers that; the boot screen then says ONE CORE and why (CRASHED, STALLED,
+NO ANSWER). After a crash it shows for ten seconds how far the second core got: CORE 2 CRASHED, then STEP 1 OF 7 to
+STEP 7 OF 7 (while starting) or RUNNING, BLOCK and a number (after that many blocks of sound).
 
 ## 11. Troubleshooting
 
 - **No sound:** turn MASTER up. Check that Blur is not all the way up on a patch with a long Swell and a note just
   played: the reverse reverb takes its time.
-- **The FM-1 restarted after a crash:** it starts on one core until the next power-off. Tell us what you were
-  doing.
+- **The FM-1 restarted after a crash:** tell us what you were doing, with a photo of the crash screen. With two
+  cores on, Album goes back to one.
+- **A crash screen right after installing:** switching from another firmware can leave its last crash behind for
+  Album to show once. Turn the FM-1 off and on.
 - **Back to M-VAVE's firmware:** the install page has a button for it.
