@@ -113,8 +113,11 @@ void __attribute__((section(".c1_text"), noinline, noreturn, used)) album_cpu1_m
     uint32_t last = 0, lo = (uint32_t)(uintptr_t)album_cpu1_stacks_lo + 256u,
              hi = (uint32_t)(uintptr_t)album_cpu1_stacks_hi - 1u;
     c1_in = C1_IN_MAGIC;                 /* (got here: see c1_report) */
-    (void)lo;                            /* (its own stack limits, 0x1EEF2D0.., are left off: one unknown fewer */
-    (void)hi;                            /*  while its crashes are chased) */
+    C1_REG(0x1EEF2D8u) = hi;             /* its own stack limits, as core 0 has, and its EMU_CON as X0X and Melodee */
+    C1_REG(0x1EEF2DCu) = lo;             /* set it (bit 2 and bits 16..20 cleared, bit 3 on): on an FM-1 whose core 1 */
+    C1_REG(0x1EEF2E0u) = hi;             /* read RAM wrong, that took its misreads at rest from 40 in 13 s to none */
+    C1_REG(0x1EEF2E4u) = lo;             /* (charlesvestal/fm1-x0x#10) */
+    C1_REG(0x1EEF2D0u) = (C1_REG(0x1EEF2D0u) & ~((1u << 2) | (0x1Fu << 16))) | (1u << 3);
     c1_store(&c1_box.ready, 1u);
     for (;;) {
         uint32_t r = c1_load(&c1_box.req);
