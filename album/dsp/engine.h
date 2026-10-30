@@ -66,6 +66,8 @@ typedef struct {
     float trem_l, trem_r, trem_depth;    /* tremolo: its two speeds (Hz), left and right, and depth 0..1 */
     uint8_t trem_square;                 /* 1: the tremolo chops (a square, its edges softened) instead of swaying */
     uint8_t trem_pan;                    /* 1: the tremolo pans the whole sound, reverb too: right opposite left, at trem_l */
+    uint8_t trem_sync;                   /* 1: trem_l and trem_r are cycles a beat, at the tempo, and with the beat on its
+                                          * chops fall on its sixteenths (4: sixteenths, 3: eighth-note triplets) */
     float swell_lo, swell_hi;            /* the reverse reverb's window (s) at Swell 0 and Swell 1 */
     float wet_lo, wet_hi;                /* the reverb's share at Blur 0 and Blur 1 (1: no dry at all) */
     float diffuse;                       /* how much Blur smears the reverb, 0..1 */

@@ -1215,7 +1215,8 @@ void eng_end(int32_t *lr, uint32_t n, float gain)
     const patch_t *p = B.p;
     uint32_t i;
     const float wet = B.wet, dry = 1.0f - wet, wet_gain = 1.6f;
-    const float tl = p->trem_l / ENG_FS, tr = p->trem_r / ENG_FS, td = p->trem_depth;
+    const float tsync = p->trem_sync ? tempo_bpm * (1.0f / 60.0f) : 1.0f;   /* (cycles a beat into Hz) */
+    const float tl = p->trem_l * tsync / ENG_FS, tr = p->trem_r * tsync / ENG_FS, td = p->trem_depth;
     const float tape = p->tape, drive = 1.0f + 2.2f * tape, make_up = (1.0f + 0.4f * tape) / drive;
     const float out_gain = gain * 8000000.0f;
     const beat_t *bt = p->beat;
@@ -1286,7 +1287,14 @@ void eng_end(int32_t *lr, uint32_t n, float gain)
             r = r * (1.0f - fz_mix) + (yr * fz_out + fz_lo_r * 0.5f) * fz_mix;
         }
         if (td > 0.0f) {                 /* two amps, two speeds (or one sound carried side to side) */
-            float ml = sine01(trem_l_ph), mr = p->trem_pan ? -ml : sine01(trem_r_ph);
+            float ml, mr;
+            if (p->trem_sync && C.run && !ext) {   /* on the beat: where in its bar the clock is, open on each step */
+                float beats = (float)(C.step & 3u) + fm_minf(C.pos / sps, 0.999f);
+                trem_l_ph = wrap01(beats * p->trem_l + 0.5f);
+                trem_r_ph = wrap01(beats * p->trem_r + 0.5f);
+            }
+            ml = sine01(trem_l_ph);
+            mr = p->trem_pan ? -ml : sine01(trem_r_ph);
             if (p->trem_square) {        /* a chop: the sine pushed hard into a soft square */
                 ml = soft(ml * 6.0f);
                 mr = soft(mr * 6.0f);

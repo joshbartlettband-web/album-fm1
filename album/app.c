@@ -506,6 +506,9 @@ static void intro_strip(uint32_t y0, uint32_t now)
 /* ---------------------------------------------------------------------- UI --- */
 static struct {
     char msg[2][24];                     /* a message over the photo: the patch, a knob, a button */
+    uint8_t msg_chord;                   /* the message is a chord: drawn in its notes' colours (chord_show) */
+    char chord_nt[8][4];                 /* its notes, spelled from the root: D F# A */
+    uint8_t chord_pc[8], chord_n, chord_root;
     uint32_t msg_until, knob_until;
     int8_t knob_shown;                   /* the knob whose bar is up, -1 none */
     uint32_t keys, btn;
@@ -553,6 +556,7 @@ void app_say(const char *a, const char *b)
 {
     uint32_t i;
     char t[52];
+    ui.msg_chord = 0;
     for (i = 0; i < 23u && a && a[i]; i++)
         ui.msg[0][i] = a[i];
     ui.msg[0][i] = 0;
@@ -667,6 +671,64 @@ static int accordion_row(int row, int deg, int root, int16_t *out, char *name)
     return n;
 }
 
+/* a chord's notes, spelled from its root as a player would (D major: D F# A; G minor: G Bb D), stacked in thirds
+ * (root, third, fifth, seventh, then ninth, eleventh, thirteenth), for the screen */
+static void chord_show(const char *name, const int16_t *notes, int n)
+{
+    static const uint8_t NAT[7] = {0, 2, 4, 5, 7, 9, 11};   /* C D E F G A B */
+    uint8_t has[12] = {0}, m = 0;
+    int letter, root, s, has3, has7;
+    if (name[0] < 'A' || name[0] > 'G' || n <= 0)
+        return;
+    letter = (name[0] - 'C' + 7) % 7;
+    root = NAT[letter] + (name[1] == '#' ? 1 : name[1] == 'b' ? -1 : 0);
+    root = (root + 12) % 12;
+    has[0] = 1;                          /* (the root named, played or not) */
+    for (s = 0; s < n; s++)
+        has[((notes[s] - root) % 12 + 12) % 12] = 1;
+    has3 = has[3] || has[4];
+    has7 = has[10] || has[11];
+    {
+        /* each interval: where it stacks, and how many letters up from the root it is spelled */
+        int rank[12], off[12], order[12], k = 0, a, b;
+        for (s = 0; s < 12; s++) {
+            switch (s) {
+            case 0: rank[s] = 0, off[s] = 0; break;
+            case 1: rank[s] = 7, off[s] = 1; break;                                   /* b9 */
+            case 2: rank[s] = has3 ? 7 : 1, off[s] = 1; break;                        /* 9, or sus2 */
+            case 3: case 4: rank[s] = 2, off[s] = 2; break;                           /* the third */
+            case 5: rank[s] = has3 ? 8 : 3, off[s] = 3; break;                        /* 11, or sus4 */
+            case 6: rank[s] = has[7] ? 8 : 4, off[s] = has[7] ? 3 : 4; break;         /* #11, or b5 */
+            case 7: rank[s] = 4, off[s] = 4; break;
+            case 8: rank[s] = has[7] ? 9 : 4, off[s] = has[7] ? 5 : 4; break;         /* b13, or #5 */
+            case 9: rank[s] = has7 ? 9 : 5, off[s] = 5; break;                        /* 13, or 6 */
+            default: rank[s] = 6, off[s] = 6; break;                                  /* the seventh */
+            }
+            if (has[s])
+                order[k++] = s;
+        }
+        for (a = 1; a < k; a++)           /* (a few notes: insertion sort by rank) */
+            for (b = a; b > 0 && rank[order[b]] < rank[order[b - 1]]; b--) {
+                int t = order[b];
+                order[b] = order[b - 1];
+                order[b - 1] = t;
+            }
+        for (a = 0; a < k && m < 8u; a++) {
+            int iv = order[a], pc = (root + iv) % 12, l = (letter + off[iv]) % 7;
+            int acc = ((pc - NAT[l]) % 12 + 12) % 12;   /* 0, 1 #, 2 ##, 11 b, 10 bb */
+            char *t = ui.chord_nt[m];
+            t[0] = (char)('A' + (l + 2) % 7);
+            t[1] = acc == 1 ? '#' : acc == 11 ? 'b' : acc == 2 ? '#' : acc == 10 ? 'b' : 0;
+            t[2] = acc == 2 ? '#' : acc == 10 ? 'b' : 0;
+            t[3] = 0;
+            ui.chord_pc[m++] = (uint8_t)pc;
+        }
+    }
+    ui.chord_n = m;
+    ui.chord_root = (uint8_t)root;
+    ui.msg_chord = 1;
+}
+
 static void key_down(uint32_t k, uint32_t v, int quiet)
 {
     int bass = clamp(53 + (int32_t)k + 12 * set.octave, 0, 127), i;
@@ -694,6 +756,7 @@ static void key_down(uint32_t k, uint32_t v, int quiet)
             eng_bass_root(ui.key_notes[k][0]);   /* the bass plays the chord's lowest note */
         if (!quiet) {
             app_say(name, "");
+            chord_show(name, ui.key_notes[k], ui.key_n[k]);
             ui.msg_until = plat_ms() + 900u;
         }
     } else {
@@ -1109,9 +1172,83 @@ static void shade(uint32_t y, uint32_t h)
     }
 }
 
+/* a note's colour: round the colour wheel by semitone (C red, E yellow-green, G# blue, ...); over a red photo,
+ * shades of red instead, dark to pale by the same order */
+static uint16_t note_rgb(int pc, int red)
+{
+    if (red) {
+        uint32_t t = (uint32_t)pc * 255u / 11u;
+        return RGB(150u + t * 105u / 255u, 20u + t * 170u / 255u, 30u + t * 150u / 255u);
+    } else {
+        int h = pc * 6, x, r, g, b;      /* 72 steps round; a light, clear colour to read over a photo */
+        int sx = h % 12;
+        x = 110 + sx * 145 / 12;
+        switch (h / 12) {
+        case 0: r = 255, g = x, b = 110; break;
+        case 1: r = 365 - x, g = 255, b = 110; break;
+        case 2: r = 110, g = 255, b = x; break;
+        case 3: r = 110, g = 365 - x, b = 255; break;
+        case 4: r = x, g = 110, b = 255; break;
+        default: r = 255, g = 110, b = 365 - x; break;
+        }
+        return RGB(r, g, b);
+    }
+}
+
+/* text with a black edge all round, for words straight on the photo */
+static int32_t text_ol(int32_t x, int32_t y, const felucca_font_t *f, const char *s, uint16_t c)
+{
+    int dx, dy;
+    for (dy = -1; dy <= 1; dy++)
+        for (dx = -1; dx <= 1; dx++)
+            if (dx || dy)
+                cv_text(x + dx, y + dy, f, s, 0);
+    return cv_text(x, y, f, s, c);
+}
+
+/* is the top of the photo mostly red (FLAME's room)? then the chord's letters go in shades of red */
+static int top_is_red(void)
+{
+    uint32_t i, r = 0, g = 0, b = 0;
+    for (i = 0; i < 240u * 30u; i += 3u) {
+        uint32_t c = swap16(cv_px[i]);
+        r += c >> 11;
+        g += (c >> 6) & 31u;
+        b += c & 31u;
+    }
+    i = 240u * 30u / 3u;                 /* (pixels counted) */
+    return r > i * 12u && r * 2u > g * 5u && r * 2u > b * 5u;   /* bright enough, and red well over the rest */
+}
+
+static void chord_draw(void)
+{
+    const felucca_font_t *nf = &FONT_B;
+    int32_t x = 10, w, i, ny = 6;
+    int red = top_is_red();
+    char nm[24];
+    for (i = 0; i < 23 && ui.msg[0][i]; i++)
+        nm[i] = ui.msg[0][i];
+    nm[i] = 0;
+    w = text_w(&FONT_B, nm) + text_w(&FONT_B, " - ");
+    for (i = 0; i < ui.chord_n; i++)
+        w += text_w(&FONT_B, ui.chord_nt[i]) + text_w(&FONT_B, " ");
+    if (w > 222) {                       /* a long one (Bbmaj9): its notes smaller */
+        nf = &FONT_XS;
+        ny = 11;
+    }
+    x = text_ol(x, 6, &FONT_B, nm, note_rgb(ui.chord_root, red));
+    x = text_ol(x, ny, nf, " - ", red ? RGB(255, 200, 190) : RGB(255, 245, 235));
+    for (i = 0; i < ui.chord_n; i++) {
+        x = text_ol(x, ny, nf, ui.chord_nt[i], note_rgb(ui.chord_pc[i], red));
+        x += text_w(nf, " ");
+    }
+}
+
 static void overlay(uint32_t y0, uint32_t now)
 {
-    if (y0 == 0 && now < ui.msg_until) {
+    if (y0 == 0 && now < ui.msg_until && ui.msg_chord) {
+        chord_draw();                    /* a chord: no band, its letters on the photo */
+    } else if (y0 == 0 && now < ui.msg_until) {
         shade(0, 34);
         cv_text(10, 6, &FONT_B, ui.msg[0], RGB(255, 236, 220));
         if (ui.msg[1][0])

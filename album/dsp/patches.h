@@ -74,12 +74,13 @@ static const patch_t PATCHES[] = {
      .tape = 1.0f, .level = 0.85f, .knob = {0.5f, 0.35f, 0.7f, 0.35f, 0.8f},
      .chord = CH_POWER, .beat = &BEAT_DAHLIA},
     /* Flame: a flame of small lights hanging in a red room at night. A low chord chopped by a fast tremolo, each
-     * side flickering at its own speed, in a long dark space. */
+     * side flickering at its own speed, in a long dark space. The chop keeps the tempo: sixteenths on the left,
+     * triplets on the right, on the beat's own sixteenths while it plays. */
     {.name = "FLAME", .photo = 3, .wave = WAVE_SAW, .oscs = 2, .detune = 12.0f, .octave = -12.0f, .sub = 0.35f,
      .cut_lo = 260.0f, .cut_hi = 3000.0f, .res = 0.35f, .fenv = 0.5f, .fenv_decay = 2.0f,
      .att = 0.05f, .dec = 2.0f, .sus = 0.9f, .rel = 1.8f,
      .arm_cents = 45.0f, .drift_cents = 7.0f, .arm_rate = 0.8f,
-     .trem_l = 6.0f, .trem_r = 4.5f, .trem_depth = 0.9f, .trem_square = 1,
+     .trem_l = 4.0f, .trem_r = 3.0f, .trem_depth = 0.9f, .trem_square = 1, .trem_sync = 1,
      .swell_lo = 0.3f, .swell_hi = 1.45f, .wet_lo = 0.35f, .wet_hi = 0.95f, .diffuse = 0.9f,
      .tape = 0.5f, .level = 1.1f, .knob = {0.4f, 0.65f, 0.3f, 0.5f, 0.5f},
      .chord = CH_DARK, .beat = &BEAT_FLAME},
