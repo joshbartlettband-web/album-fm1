@@ -15,6 +15,7 @@
 #include "photos.h"
 
 #ifndef PLAT_HOST
+#include "cpu1/supply.h"
 #include "cpu1/cpu1.c"
 #else
 static uint8_t c1_on;
@@ -233,6 +234,11 @@ void app_init(void)
     eng_beat_var(set.beat_var);
     eng_bass(set.bass);
 #ifndef PLAT_HOST
+    {   /* M-VAVE's own supply setup (cpu1/supply.h), core 1 still held: two cores only when it took */
+        uint32_t f = irq_save();
+        fm1_supply_ok = (uint8_t)fm1_supply_stock();
+        irq_restore(f);
+    }
     /* one core unless asked: the second core's start hung a cold boot on hardware (a crash, then a restart on one
      * core). OCT+ held through the boot screen tries two cores and remembers it; OCT- held puts it back to one
      * (cores_hold, app_frame: the panel is not read yet this early) */
