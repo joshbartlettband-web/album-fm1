@@ -507,7 +507,8 @@ static void intro_strip(uint32_t y0, uint32_t now)
 /* ---------------------------------------------------------------------- UI --- */
 static struct {
     char msg[2][24];                     /* a message over the photo: the patch, a knob, a button */
-    uint8_t msg_chord;                   /* the message is a chord: drawn in its notes' colours (chord_show) */
+    uint8_t msg_chord;
+    uint8_t cpu_peak;                    /* EDIT held: the render's peak load since (overlay) */                   /* the message is a chord: drawn in its notes' colours (chord_show) */
     char chord_nt[8][4];                 /* its notes, spelled from the root: D F# A */
     uint8_t chord_pc[8], chord_n, chord_root;
     uint32_t msg_until, knob_until;
@@ -1255,6 +1256,21 @@ static void overlay(uint32_t y0, uint32_t now)
         if (ui.msg[1][0])
             cv_text(240 - 10 - text_w(&FONT_XS, ui.msg[1]), 11, &FONT_XS, ui.msg[1], RGB(255, 120, 110));
     }
+    if (y0 == 0 && (ui.btn >> B_EDIT & 1u) && now >= ui.msg_until) {   /* EDIT held: the render's load, now and its
+                                                                          * peak while held, and the voices sounding */
+        char t[32], n[12];
+        t[0] = 0;
+        text_cat(t, "CPU ");
+        int_text((int32_t)plat_cpu_pct(), n);
+        text_cat(t, n);
+        text_cat(t, "%  PEAK ");
+        int_text((int32_t)ui.cpu_peak, n);
+        text_cat(t, n);
+        text_cat(t, "%  V ");
+        int_text((int32_t)eng_voices_on(), n);
+        text_cat(t, n);
+        text_ol(10, 8, &FONT_XS, t, RGB(255, 236, 220));
+    }
     if (y0 == 0 && FM1B_BLE_CENTRAL && plat_ble_device() == BLE_DEV_READY && now >= ui.msg_until)
         cv_text(206, 6, &FONT_XS, "LINK", RGB(255, 140, 120));
     if (y0 == 240u - STRIP && ui.knob_shown >= 0 && now < ui.knob_until) {
@@ -1357,6 +1373,15 @@ void app_frame(void)
     input();
     speak();
     voices_back(now);
+    if (ui.btn >> B_EDIT & 1u) {         /* the load readout: its peak, and the screen kept fresh */
+        uint32_t c = plat_cpu_pct();
+        if (c > ui.cpu_peak)
+            ui.cpu_peak = (uint8_t)(c > 255u ? 255u : c);
+        if (now - ph.last_draw >= 250u)
+            ph.dirty = 1;
+    } else {
+        ui.cpu_peak = 0;
+    }
     /* what came in over MIDI that the screen shows */
     if (midi_patch_req >= 0) {
         int32_t p = midi_patch_req;

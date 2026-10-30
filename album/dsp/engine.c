@@ -566,15 +566,156 @@ static void reverb(const float *in, float *out, uint32_t n)   /* n frames at 44.
 /* ---------------------------------------------------------------- render --- */
 static const float SPREAD3[3] = {-0.5f, 0.5f, 0.0f};
 
+/* one sub-block of a voice's samples. Always inlined into render_voice once for each waveform and oscillator count
+ * (WAVE, OSCS constants), so the sample loop carries no per-sample choice of waveform; the voice's state is kept in
+ * locals through it (the output pointer could alias it otherwise, and every sample would load and store it all).
+ * The arithmetic, and its order, are the loop's as it was: the output is bit for bit the same. */
+static inline __attribute__((always_inline)) void voice_sub(voice_t *v, const patch_t *p, float *o, uint32_t cnt,
+                                                            const float *dt, float sub_dt, float a1, float a2,
+                                                            float a3, float vgain, float pl, float pr,
+                                                            const int WAVE, const uint32_t OSCS)
+{
+    uint32_t i, o2, stage = v->stage, quick = v->quick, rng = v->rng;
+    float env = v->env, sub_ph = v->sub_ph, crk = v->crk;
+    float s1l = v->s1l, s2l = v->s2l, s1r = v->s1r, s2r = v->s2r, hpl = v->hpl, hpr = v->hpr;
+    float ph[3], fph[3];
+    const float att_inc = B.att_inc, dec_c = B.dec_c, rel_c = quick ? B.quick_c : B.rel_c, sus = p->sus;
+    const float noise = p->noise, sub = p->sub, hp = p->hp, hp_c = B.hp_c, crackle = p->crackle;
+    const float pw = p->pw, fm_index = p->fm_index, fm_env = v->fm_env, fm_ratio = p->fm_ratio;
+    for (o2 = 0; o2 < OSCS; o2++) {
+        ph[o2] = v->ph[o2];
+        fph[o2] = v->fm_ph[o2];
+    }
+    for (i = 0; i < cnt; i++) {
+        float sl = 0.0f, sr = 0.0f, s, e, yl, yr, v1, v2, v3;
+        /* the level */
+        switch (stage) {
+        case ST_ATT:
+            env += att_inc;
+            if (env >= 1.0f) {
+                env = 1.0f;
+                stage = ST_DEC;
+            }
+            break;
+        case ST_DEC:
+            env = sus + (env - sus) * dec_c;
+            if (sus <= 0.0f && env < 0.0001f)
+                stage = ST_REL;
+            break;
+        case ST_REL:
+            env *= rel_c;
+            break;
+        default:
+            break;
+        }
+        e = env;
+        /* the oscillators */
+        for (o2 = 0; o2 < OSCS; o2++) {
+            float x = ph[o2], d = dt[o2];
+            if (WAVE == WAVE_SAW) {
+                s = 2.0f * x - 1.0f - blep(x, d);
+            } else if (WAVE == WAVE_PULSE) {
+                float x2 = x + 1.0f - pw;
+                if (x2 >= 1.0f)
+                    x2 -= 1.0f;
+                s = (x < pw ? 1.0f : -1.0f) + blep(x, d) - blep(x2, d);
+            } else if (WAVE == WAVE_TRI) {
+                s = 1.0f - 4.0f * fm_fabsf(x - 0.5f);
+            } else if (WAVE == WAVE_FM) {
+                float m = sine01(fph[o2]) * fm_index * fm_env * (1.0f / FM_TWO_PI);
+                s = sine01(wrap01(x + m));
+                fph[o2] = wrap01(fph[o2] + d * fm_ratio);
+            } else {
+                s = sine01(x);
+            }
+            x += d;
+            if (x >= 1.0f)
+                x -= 1.0f;
+            ph[o2] = x;
+            if (OSCS == 1u) {
+                sl += s;
+                sr += s;
+            } else if (o2 == 0u) {
+                sl += s;
+            } else if (o2 == 1u) {
+                sr += s;
+            } else {
+                sl += 0.6f * s;
+                sr += 0.6f * s;
+            }
+        }
+        if (OSCS == 3u) {
+            sl *= 0.625f;
+            sr *= 0.625f;
+        }
+        if (noise > 0.0f) {              /* air, a little different on each side */
+            sl += (rndf(&rng) - 0.5f) * 2.0f * noise;
+            sr += (rndf(&rng) - 0.5f) * 2.0f * noise;
+        }
+        if (sub > 0.0f) {
+            float u = sine01(sub_ph) * sub;
+            sub_ph += sub_dt;
+            if (sub_ph >= 1.0f)
+                sub_ph -= 1.0f;
+            sl += u;
+            sr += u;
+        }
+        /* the two low-pass filters (state variable, trapezoidal) */
+        v3 = sl - s2l;
+        v1 = a1 * s1l + a2 * v3;
+        v2 = s2l + a2 * s1l + a3 * v3;
+        s1l = 2.0f * v1 - s1l;
+        s2l = 2.0f * v2 - s2l;
+        yl = v2;
+        v3 = sr - s2r;
+        v1 = a1 * s1r + a2 * v3;
+        v2 = s2r + a2 * s1r + a3 * v3;
+        s1r = 2.0f * v1 - s1r;
+        s2r = 2.0f * v2 - s2r;
+        yr = v2;
+        if (hp > 0.0f) {
+            hpl += hp_c * (yl - hpl);
+            hpr += hp_c * (yr - hpr);
+            yl -= hpl;
+            yr -= hpr;
+        }
+        if (crackle > 0.0f) {            /* the fire: a click now and then, bright, under the voice's level */
+            if (rndf(&rng) < B.crackle_p)
+                crk = (rndf(&rng) - 0.5f) * 3.0f * crackle;
+            yl += crk * (0.6f + 0.4f * rndf(&rng));
+            yr += crk * (0.6f + 0.4f * rndf(&rng));
+            crk *= 0.9f;
+            if (crk < 1e-6f && crk > -1e-6f)
+                crk = 0.0f;              /* (no denormals: they are slow) */
+        }
+        e *= vgain;
+        o[2u * i] += yl * e * pl * 2.0f;
+        o[2u * i + 1u] += yr * e * pr * 2.0f;
+    }
+    for (o2 = 0; o2 < OSCS; o2++) {
+        v->ph[o2] = ph[o2];
+        v->fm_ph[o2] = fph[o2];
+    }
+    v->stage = (uint8_t)stage;
+    v->rng = rng;
+    v->env = env;
+    v->sub_ph = sub_ph;
+    v->crk = crk;
+    v->s1l = s1l, v->s2l = s2l, v->s1r = s1r, v->s2r = s2r, v->hpl = hpl, v->hpr = hpr;
+}
+
 static void render_voice(voice_t *v, float *o, uint32_t n)
 {
     const patch_t *p = B.p;
-    uint32_t j, i, oscs = p->oscs ? p->oscs : 1u;
+    uint32_t j, oscs = p->oscs ? p->oscs : 1u;
     const float vgain = B.vgain * (0.35f + 0.65f * v->vel);
     const float pl = 0.5f - 0.3f * v->pan, pr = 0.5f + 0.3f * v->pan;
+    if (oscs > 3u)
+        oscs = 3u;
     for (j = 0; j * ENG_SUB < n; j++) {
         float dt[3], sub_dt, cut, g, k, a1, a2, a3, armc = B.arm[j];
-        uint32_t o2;
+        uint32_t o2, cnt = n - j * ENG_SUB < ENG_SUB ? n - j * ENG_SUB : ENG_SUB;
+        float *oo = o + 2u * j * ENG_SUB;
         if (p->mono)                     /* the slide between notes */
             v->pitch = v->target + (v->pitch - v->target) * B.slide_c;
         for (o2 = 0; o2 < oscs; o2++) {
@@ -596,120 +737,23 @@ static void render_voice(voice_t *v, float *o, uint32_t n)
         a1 = 1.0f / (1.0f + g * (g + k));
         a2 = g * a1;
         a3 = g * a2;
-        for (i = 0; i < ENG_SUB && j * ENG_SUB + i < n; i++) {
-            float sl = 0.0f, sr = 0.0f, s, e, yl, yr, v1, v2, v3;
-            /* the level */
-            switch (v->stage) {
-            case ST_ATT:
-                v->env += B.att_inc;
-                if (v->env >= 1.0f) {
-                    v->env = 1.0f;
-                    v->stage = ST_DEC;
-                }
-                break;
-            case ST_DEC:
-                v->env = p->sus + (v->env - p->sus) * B.dec_c;
-                if (p->sus <= 0.0f && v->env < 0.0001f)
-                    v->stage = ST_REL;
-                break;
-            case ST_REL:
-                v->env *= v->quick ? B.quick_c : B.rel_c;
-                break;
-            default:
-                break;
-            }
-            e = v->env;
-            /* the oscillators */
-            for (o2 = 0; o2 < oscs; o2++) {
-                float ph = v->ph[o2], d = dt[o2];
-                switch (p->wave) {
-                case WAVE_SAW:
-                    s = 2.0f * ph - 1.0f - blep(ph, d);
-                    break;
-                case WAVE_PULSE: {
-                    float ph2 = ph + 1.0f - p->pw;
-                    if (ph2 >= 1.0f)
-                        ph2 -= 1.0f;
-                    s = (ph < p->pw ? 1.0f : -1.0f) + blep(ph, d) - blep(ph2, d);
-                    break;
-                }
-                case WAVE_TRI:
-                    s = 1.0f - 4.0f * fm_fabsf(ph - 0.5f);
-                    break;
-                case WAVE_FM: {
-                    float m = sine01(v->fm_ph[o2]) * p->fm_index * v->fm_env * (1.0f / FM_TWO_PI);
-                    s = sine01(wrap01(ph + m));
-                    v->fm_ph[o2] = wrap01(v->fm_ph[o2] + d * p->fm_ratio);
-                    break;
-                }
-                default:
-                    s = sine01(ph);
-                    break;
-                }
-                ph += d;
-                if (ph >= 1.0f)
-                    ph -= 1.0f;
-                v->ph[o2] = ph;
-                if (oscs == 1u) {
-                    sl += s;
-                    sr += s;
-                } else if (o2 == 0u) {
-                    sl += s;
-                } else if (o2 == 1u) {
-                    sr += s;
-                } else {
-                    sl += 0.6f * s;
-                    sr += 0.6f * s;
-                }
-            }
-            if (oscs == 3u) {
-                sl *= 0.625f;
-                sr *= 0.625f;
-            }
-            if (p->noise > 0.0f) {       /* air, a little different on each side */
-                sl += (rndf(&v->rng) - 0.5f) * 2.0f * p->noise;
-                sr += (rndf(&v->rng) - 0.5f) * 2.0f * p->noise;
-            }
-            if (p->sub > 0.0f) {
-                float u = sine01(v->sub_ph) * p->sub;
-                v->sub_ph += sub_dt;
-                if (v->sub_ph >= 1.0f)
-                    v->sub_ph -= 1.0f;
-                sl += u;
-                sr += u;
-            }
-            /* the two low-pass filters (state variable, trapezoidal) */
-            v3 = sl - v->s2l;
-            v1 = a1 * v->s1l + a2 * v3;
-            v2 = v->s2l + a2 * v->s1l + a3 * v3;
-            v->s1l = 2.0f * v1 - v->s1l;
-            v->s2l = 2.0f * v2 - v->s2l;
-            yl = v2;
-            v3 = sr - v->s2r;
-            v1 = a1 * v->s1r + a2 * v3;
-            v2 = v->s2r + a2 * v->s1r + a3 * v3;
-            v->s1r = 2.0f * v1 - v->s1r;
-            v->s2r = 2.0f * v2 - v->s2r;
-            yr = v2;
-            if (p->hp > 0.0f) {
-                v->hpl += B.hp_c * (yl - v->hpl);
-                v->hpr += B.hp_c * (yr - v->hpr);
-                yl -= v->hpl;
-                yr -= v->hpr;
-            }
-            if (p->crackle > 0.0f) {     /* the fire: a click now and then, bright, under the voice's level */
-                if (rndf(&v->rng) < B.crackle_p)
-                    v->crk = (rndf(&v->rng) - 0.5f) * 3.0f * p->crackle;
-                yl += v->crk * (0.6f + 0.4f * rndf(&v->rng));
-                yr += v->crk * (0.6f + 0.4f * rndf(&v->rng));
-                v->crk *= 0.9f;
-                if (v->crk < 1e-6f && v->crk > -1e-6f)
-                    v->crk = 0.0f;       /* (no denormals: they are slow) */
-            }
-            e *= vgain;
-            o[2u * (j * ENG_SUB + i)] += yl * e * pl * 2.0f;
-            o[2u * (j * ENG_SUB + i) + 1u] += yr * e * pr * 2.0f;
+#define VSUB(W, N) voice_sub(v, p, oo, cnt, dt, sub_dt, a1, a2, a3, vgain, pl, pr, W, N)
+        switch (p->wave * 4 + (int)oscs) {
+        case WAVE_SAW * 4 + 1: VSUB(WAVE_SAW, 1u); break;
+        case WAVE_SAW * 4 + 2: VSUB(WAVE_SAW, 2u); break;
+        case WAVE_SAW * 4 + 3: VSUB(WAVE_SAW, 3u); break;
+        case WAVE_PULSE * 4 + 1: VSUB(WAVE_PULSE, 1u); break;
+        case WAVE_PULSE * 4 + 2: VSUB(WAVE_PULSE, 2u); break;
+        case WAVE_PULSE * 4 + 3: VSUB(WAVE_PULSE, 3u); break;
+        case WAVE_TRI * 4 + 1: VSUB(WAVE_TRI, 1u); break;
+        case WAVE_TRI * 4 + 2: VSUB(WAVE_TRI, 2u); break;
+        case WAVE_TRI * 4 + 3: VSUB(WAVE_TRI, 3u); break;
+        case WAVE_FM * 4 + 1: VSUB(WAVE_FM, 1u); break;
+        case WAVE_FM * 4 + 2: VSUB(WAVE_FM, 2u); break;
+        case WAVE_FM * 4 + 3: VSUB(WAVE_FM, 3u); break;
+        default: VSUB(-1, oscs == 1u ? 1u : oscs == 2u ? 2u : 3u); break;   /* (a sine: rare) */
         }
+#undef VSUB
         v->fenv = v->fenv > 1e-6f ? v->fenv * B.fenv_c : 0.0f;
         v->fm_env = v->fm_env > 1e-6f ? v->fm_env * B.fm_c : 0.0f;
         if (v->stage == ST_REL && v->env < 0.00005f) {   /* done: free, and quiet for the next note */
