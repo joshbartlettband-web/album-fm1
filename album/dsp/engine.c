@@ -1289,7 +1289,7 @@ void eng_end(int32_t *lr, uint32_t n, float gain)
         if (td > 0.0f) {                 /* two amps, two speeds (or one sound carried side to side) */
             float ml, mr;
             if (p->trem_sync && C.run && !ext) {   /* on the beat: where in its bar the clock is, open on each step */
-                float beats = (float)(C.step & 3u) + fm_minf(C.pos / sps, 0.999f);
+                float beats = ((float)(C.step & 3u) + fm_minf(C.pos / sps, 0.999f)) * 0.25f;   /* (sixteenths to beats) */
                 trem_l_ph = wrap01(beats * p->trem_l + 0.5f);
                 trem_r_ph = wrap01(beats * p->trem_r + 0.5f);
             }
