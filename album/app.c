@@ -240,12 +240,13 @@ void app_init(void)
         && (c1_bar.why == C1_WHY_CRASH || c1_bar.why == C1_WHY_NOSTART)) {
         set.two_cores = 0;               /* it crashed (or would not start) with two: one from now on, kept */
         plat_store_save(OBJ_SETTINGS, &set, sizeof set);
+        c1_said_why = (uint8_t)c1_bar.why;   /* (the boot screen says why) */
     }
     if (set.two_cores && !set.one_core) {
         c1_wait = 1;                     /* started from app_frame, once Bluetooth's start is over (c1_radio) */
         eng_voice_cap(8);
     } else {
-        c1_why = C1_WHY_OFF;
+        c1_why = c1_said_why ? c1_said_why : C1_WHY_OFF;
         eng_voice_cap(8);                /* one core: eight voices */
     }
 #endif
@@ -1291,12 +1292,22 @@ void app_frame(void)
         set.two_cores = (uint8_t)two;
         plat_store_save(OBJ_SETTINGS, &set, sizeof set);
 #ifndef PLAT_HOST
-        if (two && !c1_on)
-            c1_start();
-        else if (!two && c1_on)
-            c1_retire(C1_WHY_OFF);
-        app_say(two ? (c1_on ? "TWO CORES" : "TWO CORES FAILED") : "ONE CORE", two ? (c1_on ? "12 VOICES" : "8 VOICES")
-                                                                                  : "8 VOICES");
+        if (two && !c1_on) {
+            c1_unbar();
+            if (radio_quiet)
+                c1_wait = 1;             /* (Bluetooth still starting: c1_radio starts it after) */
+            else
+                c1_start();
+        } else if (!two) {
+            c1_wait = 0;
+            if (c1_on)
+                c1_retire(C1_WHY_OFF);
+        }
+        if (two && c1_wait)
+            app_say("TWO CORES", "STARTING");
+        else
+            app_say(two ? (c1_on ? "TWO CORES" : "TWO CORES FAILED") : "ONE CORE",
+                    two ? (c1_on ? "12 VOICES" : c1_fail_text()) : "8 VOICES");
 #else
         app_say(two ? "TWO CORES" : "ONE CORE", two ? "12 VOICES" : "8 VOICES");
 #endif
@@ -1311,11 +1322,13 @@ void app_frame(void)
             ) {
 #ifndef PLAT_HOST
             int two = c1_on;
+            const char *why = two ? "12 VOICES" : c1_fail_text();   /* (one core after a failure: which) */
 #else
             int two = set.two_cores;
+            const char *why = two ? "12 VOICES" : "8 VOICES";
 #endif
             said_cores = 1;
-            app_say(two ? "TWO CORES" : "ONE CORE", two ? "12 VOICES" : "8 VOICES");
+            app_say(two ? "TWO CORES" : "ONE CORE", why);
             ui.msg_until = now + 3000u;
         }
     }

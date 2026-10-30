@@ -34,6 +34,7 @@ typedef struct {
 static c1_box_t c1_box __attribute__((aligned(32)));
 static struct { uint32_t magic, barred, why; } c1_bar __attribute__((section(".noinit")));
 static uint8_t c1_on;                    /* core 1 is up and taking jobs */
+static uint8_t c1_said_why;              /* the failure that turned two cores off at this boot (app_init) */
 static uint8_t c1_wait;                  /* two cores wanted, held until the radio's start is over (app.c c1_radio) */
 
 /* the trace: how far the start got, and how many jobs core 1 finished after, in RAM that a crash's restart keeps
@@ -145,10 +146,33 @@ static void c1_retire(uint32_t why)
     c1_hold();
     c1_on = 0;
     c1_why = why;
-    c1_bar.magic = C1_BAR_MAGIC;
-    c1_bar.barred = 1;
-    c1_bar.why = why;
+    if (why != C1_WHY_OFF) {             /* (one core asked for, OCT- held: nothing wrong, nothing barred) */
+        c1_bar.magic = C1_BAR_MAGIC;
+        c1_bar.barred = 1;
+        c1_bar.why = why;
+    }
     eng_voice_cap(8);                    /* one core: fewer voices, the same sound */
+}
+
+/* OCT+ held on the boot screen: a deliberate try, so an earlier verdict is set aside (the bar lives in .noinit,
+ * which the FM-1's power switch does not always clear: once barred, every later try was refused unseen) */
+static void c1_unbar(void)
+{
+    c1_bar.magic = 0;
+    c1_bar.barred = 0;
+}
+
+/* why two cores are not running, for the screen's second line */
+static const char *c1_fail_text(void)
+{
+    switch (c1_why) {
+    case C1_WHY_NOSTART: return c1_in == C1_IN_MAGIC ? "NO ANSWER (IN)" : "NO ANSWER (ROM)";
+    case C1_WHY_STALL: return "STALLED";
+    case C1_WHY_RESULTS: return "BAD RESULTS";
+    case C1_WHY_CRASH: return "CRASHED";
+    case C1_WHY_BARRED: return "BARRED";
+    default: return "8 VOICES";
+    }
 }
 
 static int c1_start(void)
