@@ -34,6 +34,8 @@ typedef struct {
 static c1_box_t c1_box __attribute__((aligned(32)));
 static struct { uint32_t magic, barred, why; } c1_bar __attribute__((section(".noinit")));
 static uint8_t c1_on;                    /* core 1 is up and taking jobs */
+static uint32_t c1_bus_en;               /* the bus traps as they were before core 1 started */
+static uint8_t c1_bus_masked;            /* and masked meanwhile (c1_start, c1_bus_back) */
 static uint8_t c1_said_why;              /* the failure that turned two cores off at this boot (app_init) */
 static uint8_t c1_wait;                  /* two cores wanted, held until the radio's start is over (app.c c1_radio) */
 
@@ -110,11 +112,8 @@ void __attribute__((section(".c1_text"), noinline, noreturn, used)) album_cpu1_m
     uint32_t last = 0, lo = (uint32_t)(uintptr_t)album_cpu1_stacks_lo + 256u,
              hi = (uint32_t)(uintptr_t)album_cpu1_stacks_hi - 1u;
     c1_in = C1_IN_MAGIC;                 /* (got here: see c1_report) */
-    C1_REG(0x1EEF2D8u) = hi;             /* its own stack limits, as core 0 has */
-    C1_REG(0x1EEF2DCu) = lo;
-    C1_REG(0x1EEF2E0u) = hi;
-    C1_REG(0x1EEF2E4u) = lo;
-    C1_REG(0x1EEF2D0u) = (C1_REG(0x1EEF2D0u) & ~((1u << 2) | (0x1Fu << 16))) | (1u << 3);
+    (void)lo;                            /* (its own stack limits, 0x1EEF2D0.., are left off: one unknown fewer
+    (void)hi;                             * while its crashes are chased) */
     c1_store(&c1_box.ready, 1u);
     for (;;) {
         uint32_t r = c1_load(&c1_box.req);
@@ -139,11 +138,31 @@ void __attribute__((section(".c1_text"), noinline, noreturn, used)) album_cpu1_m
     }
 }
 
+/* core 1 held: the bus traps back as they were, once the hold's own late flag has come and gone */
+static void c1_bus_back(void)
+{
+    uint32_t t0, bmask = 0x003F0030u;
+    __asm__("" : "+r"(bmask));
+    if (!c1_bus_masked)
+        return;
+    t0 = plat_ticks24();
+    while (plat_ticks24() - t0 < 2000u * PLAT_TICKS_PER_US)
+        ;
+    fm1__dbg_unlock();
+    FM1_DBG_MSG_CLR = bmask;
+    C1_SYNC();
+    FM1_DBG_EN = c1_bus_en;
+    C1_SYNC();
+    fm1__dbg_lock();
+    c1_bus_masked = 0;
+}
+
 static void c1_retire(uint32_t why)
 {
     if (!c1_on && why != C1_WHY_NOSTART)
         return;
     c1_hold();
+    c1_bus_back();
     c1_on = 0;
     c1_why = why;
     if (why != C1_WHY_OFF) {             /* (one core asked for, OCT- held: nothing wrong, nothing barred) */
@@ -230,12 +249,19 @@ static int c1_start(void)
         ;
     C1_REG(0x10008u) = div;
     C1_SYNC();
+    /* The bus traps stay masked while core 1 runs. Its start (the ROM, the release) raises a bus-invalid flag
+     * (DBG_MSG bit 19) that can arrive late: cleared at once and unmasked, it came after and crashed whichever
+     * core took it, core 1 idle in its loop (album_cpu1_main+0x64) or core 0 drawing. c1_bus_back puts them back
+     * once core 1 is held again. */
+    t0 = plat_ticks24();
+    while (plat_ticks24() - t0 < 2000u * PLAT_TICKS_PER_US)
+        ;                                /* (the late flag arrives) */
     fm1__dbg_unlock();
     FM1_DBG_MSG_CLR = bmask;
     C1_SYNC();
-    FM1_DBG_EN = bus;
-    C1_SYNC();
     fm1__dbg_lock();
+    c1_bus_en = bus;
+    c1_bus_masked = 1;
     if (!c1_load(&c1_box.ready)) {
         c1_retire(C1_WHY_NOSTART);
         return 0;
