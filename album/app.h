@@ -21,6 +21,8 @@ int album_ble_off(void);
  * after a reset, APP_FAULT gives it up when anything crashes */
 #ifndef PLAT_HOST
 #define APP_CSTART
+/* M-VAVE's whole supply setup at boot (fm1_sys.h fm1_supply_stock): the second core runs only when it took */
+#define APP_STOCK_SUPPLY
 void app_cstart(void);
 #define APP_FAULT
 #define APP_SPLASH                       /* the first screen: the boot photo and ALBUM 01 (the intro's first frame) */
