@@ -10,6 +10,8 @@ time they ring, heard through a reverse reverb.
   the shelf (`album/shelf/`)
 - Five knobs on every patch: Glide, Swell, Tone, Blur, and Fuzz on ALGORITHM (a fuzz pedal on the whole chord, FX
   in and out, with its own low, mid and high), each acting on the sound and the photo
+- A chord loop to jam over (REC): play chords, one a bar, for 1 to 8 bars, and the keys play single notes in the key
+  over them; PLAY stops and starts it
 - Chord mode (ARP): every key plays a chord, the black keys too, in any key (SELECT); chords drawn from My Bloody
   Valentine's records and voiced differently by every patch, spelled out on the photo in a colour for each note.
   ACCORDION: chords on the black keys (three rows, three voicings), a tune on the white

@@ -1,0 +1,150 @@
+# Album: the chord loop (album_host loop.txt OUTDIR). REC records chords, one a bar; REC (or PLAY) again closes the
+# loop on the nearest bar line and it plays; the keys play single notes in the key over it; PLAY stops and starts it.
+# RED DOOR is 86 BPM: a bar is 2.79 s, a sixteenth 174 ms.
+wait 800
+listen
+expect loop 0
+tap PLAY
+wait 30
+said LOOP REC FIRST
+# REC: waiting for the first chord. The clock starts for it, the beat still off
+tap REC
+wait 40
+expect loop 1
+expect beat 0
+said LOOP PLAY CHORDS
+master 3400
+wav loop.wav
+# C, A minor, F, G, a bar each, played just after each bar line
+key w4 down 100
+wait 40
+expect loop 2
+wait 2560
+key w4 up
+wait 189
+key w9 down 100
+wait 2600
+key w9 up
+wait 189
+key w7 down 100
+wait 2600
+key w7 up
+wait 189
+key w8 down 100
+wait 2600
+key w8 up
+wait 189
+# REC just after the fifth bar line: four bars, and the first chord again at once
+tap REC
+wait 60
+expect loop 3
+expect loop_bars 4
+expect loop_bar 0
+said LOOP 4 BARS
+expect notes 0
+expect held 5
+shot loop.png
+# a tune over it: single notes in the key, the loop going on
+key w6 down 100
+wait 60
+expect notes 1
+key w6 up
+wait 2700
+expect loop_bar 1
+said Am
+wait 2791
+expect loop_bar 2
+said F
+wait 2791
+expect loop_bar 3
+wait 2791
+expect loop_bar 0
+# a tune note on one of the chord's notes (C over C): the chord keeps it when the key lets go
+key w4 down 100
+wait 60
+key w4 up
+wait 60
+expect held 5
+# PLAY stops it; its tails ring out
+tap PLAY
+wait 30
+expect loop 4
+said LOOP STOPPED
+wait 6000
+expect voices 0
+wavstop
+# PLAY again: from its first bar, now (no clock was running)
+tap PLAY
+wait 60
+expect loop 3
+expect loop_bar 0
+expect held 5
+# SELECT: the key up a tone, and the loop with it (C is now D)
+listen
+turn SELECT 2
+wait 120
+said D
+# REC while it plays: the old loop plays on until the first new chord; REC again before one, back as it was
+tap REC
+wait 40
+expect loop 1
+expect loop_bar 0
+tap REC
+wait 40
+expect loop 3
+# the beat starts: the loop starts again from its first bar with it
+tap SEQ
+wait 60
+expect beat 1
+expect loop_bar 0
+tap SEQ
+wait 60
+# eight bars at most: one chord, then it closes itself
+tap REC
+wait 40
+key w5 down 100
+wait 200
+key w5 up
+wait 22400
+expect loop 3
+expect loop_bars 8
+tap PLAY
+wait 30
+expect loop 4
+# REC held a second: the link, the loop left as it is; three seconds: Bluetooth off, and again, on
+listen
+press REC
+wait 1100
+said LINK LOOKING
+expect loop 4
+wait 2000
+said BLUETOOTH OFF
+release REC
+wait 40
+expect loop 4
+press REC
+wait 3100
+said BLUETOOTH ON
+release REC
+wait 40
+expect loop 4
+# the first chord a little early, in the last beat of a bar: it counts for the next bar, and recording goes on
+tap REC
+wait 2451
+key w4 down 100
+wait 400
+expect loop 2
+key w4 up
+wait 2785
+key w9 down 100
+wait 2600
+key w9 up
+wait 189
+tap REC
+wait 60
+expect loop 3
+expect loop_bars 2
+expect loop_bar 0
+tap PLAY
+wait 30
+expect loop 4

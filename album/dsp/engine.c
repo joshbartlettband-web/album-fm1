@@ -62,7 +62,7 @@ static inline float coef_t(float seconds, float rate)   /* one-pole coefficient:
 
 /* ------------------------------------------------------------- the queue --- */
 /* two single-producer queues (the main loop's, the render's MIDI), one consumer (eng_begin) */
-enum { EV_ON, EV_OFF, EV_SUS, EV_PATCH, EV_PANIC, EV_ARP };
+enum { EV_ON, EV_OFF, EV_SUS, EV_PATCH, EV_PANIC, EV_ARP, EV_LOOP_START, EV_LOOP_STOP, EV_LOOP_NOW };
 typedef struct { uint8_t type, a, b, pad; } ev_t;
 #define QN 64u
 typedef struct { ev_t ev[QN]; volatile uint32_t w, r; } queue_t;
@@ -149,6 +149,13 @@ const patch_t *eng_patch_info(int p) { return &PATCHES[(p % NPATCH + NPATCH) % N
 float eng_level(void) { return level_now; }
 float eng_arm(void) { return arm_now; }
 uint32_t eng_voices_on(void) { return voices_on; }
+uint32_t eng_voices_held(void)
+{
+    uint32_t i, n = 0;
+    for (i = 0; i < ENG_VOICES; i++)
+        n += V[i].stage != ST_OFF && V[i].stage != ST_REL;
+    return n;
+}
 int eng_voice_cap(int n)
 {
     if (n >= 2 && n <= (int)ENG_VOICES)
@@ -318,6 +325,10 @@ static void set_sustain(int on)
     }
 }
 
+/* the notes the keys (and MIDI in) hold, and the notes the chord loop holds (below): kept apart, so one lets go of
+ * a note the other still holds only when both have */
+static uint8_t key_on[128], loop_on[128];
+
 static void all_quick(void)              /* everything out within ~30 ms, reverb tails kept */
 {
     uint32_t i;
@@ -329,6 +340,8 @@ static void all_quick(void)              /* everything out within ~30 ms, reverb
             V[i].quick = 1;
         }
     mono_n = 0;
+    for (i = 0; i < 128u; i++)
+        loop_on[i] = 0;
 }
 
 /* --------------------------------------------------------- the arpeggio --- */
@@ -776,6 +789,97 @@ static void render_half(uint32_t lo, float *o)
             render_voice(&V[i], o, B.n);
 }
 
+/* -------------------------------------------------------- the chord loop --- */
+/* The chord loop (the app's REC and PLAY): a chord a bar, one to eight bars, played on the clock's bar lines. The
+ * app writes the chords into the bank that is not playing, then names it (EV_LOOP_START, EV_LOOP_NOW), so a chord
+ * is never read half written. A bar line moves the loop on and makes its chord due, and eng_begin plays it, as it
+ * plays the arpeggio's notes (at most a block late). The notes the next chord shares ring on through the change, as
+ * open strings do. On a mono patch the chord goes to the arpeggio */
+#define LOOP_NOTES 8u
+typedef struct { int8_t note[LOOP_NOTES]; uint8_t n, vel; } loop_chord_t;
+static loop_chord_t loop_bank[2][ENG_LOOP_BARS];
+static uint8_t loop_use, loop_len, loop_run, loop_pos, loop_due;
+static volatile uint8_t loop_start_pos, clock_keep;
+
+void eng_loop_chord(int bank, int bar, const int16_t *notes, int n, int vel)
+{
+    loop_chord_t *c;
+    int i;
+    if (bank < 0 || bank > 1 || bar < 0 || bar >= (int)ENG_LOOP_BARS)
+        return;
+    c = &loop_bank[bank][bar];
+    n = n < 0 ? 0 : n > (int)LOOP_NOTES ? (int)LOOP_NOTES : n;
+    for (i = 0; i < n; i++)
+        c->note[i] = (int8_t)(notes[i] < 0 ? 0 : notes[i] > 127 ? 127 : notes[i]);
+    c->n = (uint8_t)n;
+    c->vel = (uint8_t)(vel < 1 ? 1 : vel > 127 ? 127 : vel);
+}
+void eng_loop_start(int bank, int bars, int pos, int now)
+{
+    loop_start_pos = (uint8_t)pos;       /* (written before the event: q_push's barrier keeps the order) */
+    q_push(&q_ui, EV_LOOP_START, (bank & 1) | (now ? 2 : 0), bars);
+}
+void eng_loop_now(int bank) { q_push(&q_ui, EV_LOOP_NOW, bank & 1, 0); }
+void eng_loop_stop(void) { q_push(&q_ui, EV_LOOP_STOP, 0, 0); }
+void eng_clock_keep(int on) { clock_keep = (uint8_t)(on != 0); }
+int eng_loop_bar(void) { return loop_run ? (int)loop_pos : -1; }
+
+static void loop_note(int n, int on, int vel)
+{
+    if (B.p->mono)
+        arp_note(n, on, vel);
+    else if (on)
+        note_on(n, vel);
+    else if (!key_on[n])                 /* (a key still holds it: it lets go with the key) */
+        note_off(n);
+}
+
+static int loop_sounds(int n)            /* a held voice still plays n (a new note can have taken its voice) */
+{
+    uint32_t i;
+    for (i = 0; i < ENG_VOICES; i++)
+        if (V[i].gate && V[i].note == n)
+            return 1;
+    return 0;
+}
+
+static void loop_release_all(void)
+{
+    uint32_t i;
+    for (i = 0; i < 128u; i++)
+        if (loop_on[i]) {
+            loop_on[i] = 0;
+            loop_note((int)i, 0, 0);
+        }
+}
+
+static void loop_play(void)              /* eng_begin: the due bar's chord */
+{
+    const loop_chord_t *c;
+    uint32_t i, j;
+    if (!loop_due)
+        return;
+    loop_due = 0;
+    if (!loop_run || !loop_len)
+        return;
+    c = &loop_bank[loop_use][loop_pos];
+    for (i = 0; i < 128u; i++) {         /* let go of what the new chord does not have */
+        if (!loop_on[i])
+            continue;
+        for (j = 0; j < c->n && c->note[j] != (int8_t)i; j++)
+            ;
+        if (j == c->n) {
+            loop_on[i] = 0;
+            loop_note((int)i, 0, 0);
+        }
+    }
+    for (j = 0; j < c->n; j++)           /* and start what it adds, or what lost its voice */
+        if (!loop_on[(uint8_t)c->note[j]] || (!B.p->mono && !loop_sounds(c->note[j]))) {
+            loop_on[(uint8_t)c->note[j]] = 1;
+            loop_note(c->note[j], 1, c->vel);
+        }
+}
+
 /* ------------------------------------------------------------- the clock --- */
 /* sixteenths at the patch's tempo (the off ones late by its swing), 24 ticks a beat for MIDI clock out; or, while a
  * clock comes in, a sixteenth each six ticks of it. It runs for the beat, and for an arpeggio with the beat off */
@@ -799,9 +903,12 @@ uint32_t eng_ticks(void) { return C.ticks; }
 uint32_t eng_step(void) { return C.step; }
 float eng_pulse(void) { return pulse; }
 int eng_clock_ext(void) { return C.ext_t > 0u; }
+int eng_clock_running(void) { return C.run; }
 
 static void clock_start(int beat)
 {
+    if (beat && loop_run)                /* a bar starts now (step 0 fires): the loop from its first bar */
+        loop_pos = (uint8_t)(loop_len - 1u);
     C.on = (uint8_t)(beat != 0);
     C.run = 1;
     C.step = C.ticks = 0;
@@ -903,6 +1010,10 @@ static void fire(uint32_t step)          /* a sixteenth: the arpeggio's next not
     uint32_t s = step & 15u, bar = step >> 4;
     int sparse = beat_var == 0, busy = beat_var == 2;
     float v;
+    if (loop_run && s == 0u) {           /* a bar line: the loop's next chord */
+        loop_pos = (uint8_t)((loop_pos + 1u) % loop_len);
+        loop_due = 1;
+    }
     if (p->mono && A.n && p->arp_div && s % p->arp_div == 0u)
         A.due = 1;
     if (!C.on || !b) {
@@ -1102,10 +1213,13 @@ static void drain(queue_t *q)
         q->r = q->r + 1u;
         switch (e.type) {
         case EV_ON:
+            key_on[e.a & 127u] = 1;
             note_on(e.a, e.b ? e.b : 1);
             break;
         case EV_OFF:
-            note_off(e.a);
+            key_on[e.a & 127u] = 0;
+            if (!loop_on[e.a & 127u] || B.p->mono)   /* (the loop still holds it: it lets go with the loop) */
+                note_off(e.a);
             break;
         case EV_SUS:
             set_sustain(e.a);
@@ -1114,11 +1228,33 @@ static void drain(queue_t *q)
             patch_apply(e.a);
             B.p = &PATCHES[cur_patch];
             A.n = 0;
+            loop_due = loop_run;         /* the loop's chord again, on the new patch */
             break;
         case EV_PANIC:
             all_quick();
             set_sustain(0);
             A.n = 0;
+            {
+                uint32_t i;
+                for (i = 0; i < 128u; i++)
+                    key_on[i] = 0;
+            }
+            break;
+        case EV_LOOP_START:
+            loop_release_all();
+            loop_use = e.a & 1u;
+            loop_len = (uint8_t)(e.b < 1u ? 1u : e.b > ENG_LOOP_BARS ? ENG_LOOP_BARS : e.b);
+            loop_pos = (uint8_t)(loop_start_pos % loop_len);
+            loop_run = 1;
+            loop_due = (e.a & 2u) != 0;
+            break;
+        case EV_LOOP_STOP:
+            loop_release_all();
+            loop_run = loop_due = 0;
+            break;
+        case EV_LOOP_NOW:
+            loop_use = e.a & 1u;
+            loop_due = loop_run;
             break;
         case EV_ARP:
             arp_note(e.a, e.b, 100);
@@ -1152,14 +1288,16 @@ void eng_begin(uint32_t n)
         else
             C.on = 0;
     }
-    if (!C.on) {                         /* with the beat off, the clock runs for an arpeggio alone */
-        if (p->mono && A.n && !C.run) {
+    if (!C.on) {                         /* with the beat off, the clock runs for an arpeggio alone, or the loop */
+        int want = (p->mono && A.n) || clock_keep;
+        if (want && !C.run) {
             clock_start(0);
             C.fired = 1;                 /* (its first note is already due) */
-        } else if (!(p->mono && A.n)) {
+        } else if (!want) {
             C.run = 0;
         }
     }
+    loop_play();
     arp_play();
     pulse *= 0.82f;
     B.n = n;
@@ -1222,6 +1360,9 @@ void eng_drop_b(void)
         V[i].note = -1;
         V[i].s1l = V[i].s2l = V[i].s1r = V[i].s2r = V[i].hpl = V[i].hpr = V[i].crk = 0.0f;
     }
+    for (i = 0; i < 128u; i++)           /* the loop's chord, whole again from the next block */
+        loop_on[i] = 0;
+    loop_due = loop_run;
 }
 
 static inline int finite(float x) { return x == x && x < 1e6f && x > -1e6f; }
