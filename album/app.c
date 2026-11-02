@@ -4,9 +4,9 @@
  * photo); the four knobs are Glide, Swell, Tone and Blur on every patch, and each moves the photo as it moves the
  * sound. ALGORITHM is a fifth knob, FUZZ, and FX takes the fuzz in and out. ARP turns chord mode on (chords.h) and
  * SELECT picks its key (or hold ARP and press a key); SEQ starts the patch's beat, and with SEQ held ALGORITHM sets
- * its tempo and SELECT its level. PLAY holds the notes; HOME puts the knobs and
- * the tempo back where the patch starts; SAVE keeps everything; REC links to another FM-1 (or any Bluetooth MIDI
- * device), held a second it turns Bluetooth off or on.
+ * its tempo and SELECT its level. REC records a chord loop to play over, and PLAY stops and starts it; HOME puts the
+ * knobs and the tempo back where the patch starts; SAVE keeps everything; REC held a second links to another FM-1
+ * (or any Bluetooth MIDI device), held three seconds it turns Bluetooth off or on.
  *
  * Part of the unity build (base/device/unity.c, base/host/plat_host.c), after the platform: gfx.c (the canvas, the
  * fonts), announce.c (the screen reader) and lib/btdev.c are in scope. The sound is dsp/engine.c, compiled apart. */
@@ -35,6 +35,7 @@ static inline float sine_wave(float x) { return fm_sinf(x * FM_TWO_PI); }
 
 /* --------------------------------------------------------------- settings --- */
 enum { MODE_NOTES, MODE_CHORDS, MODE_ACCORDION };   /* set.chords: how the keys play (ARP) */
+#define MODE_TUNE 3                      /* (not a setting: the keys over a playing loop, single notes in the key) */
 #define SET_MAGIC 0x414C4238u            /* "ALB8": the MIDI channel (earlier layouts start fresh) */
 typedef struct {
     uint32_t magic;
@@ -524,9 +525,10 @@ static struct {
     uint8_t seq_used;                    /* a knob turned while SEQ was held: tempo or level set, the beat left as is */
     uint8_t master;                      /* this FM-1 started the beat: it sends the clock */
     uint32_t ticks_sent;
-    uint8_t hold;                        /* PLAY: the notes held */
-    uint8_t looking;                     /* REC: looking for Bluetooth MIDI devices */
-    uint32_t rec_t;
+    uint8_t hold;                        /* the notes held (CC 64 in: a sustain pedal, a computer) */
+    uint8_t looking;                     /* REC held: looking for Bluetooth MIDI devices */
+    uint32_t rec_t;                      /* when REC went down (0: up) */
+    uint8_t rec_step;                    /* how far a hold of REC has gone: 1 the link, 2 Bluetooth */
     uint32_t frames;
 } ui;
 
@@ -731,41 +733,105 @@ static void chord_show(const char *name, const int16_t *notes, int n)
     ui.msg_chord = 1;
 }
 
+/* the chord key k plays in this mode, an octave and the patch on now: its notes into out and its name; 0 if it plays
+ * a single note. shift: semitones from the key it was played in to the key now (the loop's chords), else 0.
+ * *v: its velocity, softer for ACCORDION's chords */
+static int key_chord(uint32_t k, int oct, int mode, int shift, uint32_t *v, int16_t *out, char *name)
+{
+    int bass = clamp(53 + (int32_t)k + 12 * oct, 0, 127), pc = bass % 12, black = (0x54A >> pc) & 1;
+    const patch_t *p = eng_patch_info(set.patch);
+    if (mode == MODE_CHORDS) {
+        shift = ((shift % 12) + 18) % 12 - 6;   /* (-6 .. 5: the nearer way to the new key) */
+        return chord_build(bass + shift, set.key, p->chord, out, name);
+    }
+    if (mode == MODE_ACCORDION && black) {   /* a black key: one of the key's five chords, I ii IV V vi */
+        static const int8_t DEG[12] = {0, 0, 0, 2, 0, 0, 5, 0, 7, 0, 9, 0};
+        int root = bass - pc + (set.key + DEG[pc]) % 12;
+        if (root > bass + 6)
+            root -= 12;
+        *v = *v * 3u / 4u;               /* (the chord under the tune, softer) */
+        if (k < 7u || k >= 19u)          /* the bottom row and the top: their own voicings */
+            return accordion_row(k < 7u ? 0 : 2, DEG[pc], root, out, name);
+        return chord_build(root, set.key, p->chord, out, name);
+    }
+    return 0;
+}
+
+/* ---------------------------------------------------------- the chord loop --- */
+/* REC: the chords played next become a loop, a chord a bar. It starts with the first chord, on that chord's bar (one
+ * played in a bar's last beat belongs to the next), and ends with REC or PLAY on the bar line nearest the press,
+ * after one to eight bars; a bar with no chord of its own keeps the one before. Then it plays, and the keys play
+ * single notes in the key over it, the black keys as they are. PLAY stops it, and starts it again from its first bar.
+ * REC while it plays records a new one; the old one plays on until the first new chord. Each bar keeps the key that
+ * played it rather than its notes, so the loop is voiced by whichever patch is on, and SELECT moves it to the new
+ * key. The clock keeps running for it with the beat off. It is not saved. */
+enum { LOOP_OFF, LOOP_ARMED, LOOP_REC, LOOP_PLAY, LOOP_STOPPED };
+static struct {
+    uint8_t state, back;                 /* back: where REC came from (REC again before a chord goes back to it) */
+    uint8_t len, last, bank;             /* bars; the last bar a chord went into; the engine's bank playing */
+    struct { uint8_t k, mode, key, vel, set; int8_t oct; } bar[ENG_LOOP_BARS];
+    int16_t notes[ENG_LOOP_BARS][8];     /* each bar's chord as the patch on now voices it (the screen, the bass) */
+    uint8_t n[ENG_LOOP_BARS];
+    char name[ENG_LOOP_BARS][16];
+    uint32_t seen, bars, first;          /* the clock's bar last seen; bars passed since REC; the first chord's bar */
+    int8_t shown;                        /* the loop's bar on the screen */
+} lp;
+
+static void loop_take(uint32_t k, int mode, uint32_t v)   /* recording: a chord played, into its bar */
+{
+    uint32_t idx = lp.bars + ((eng_step() & 15u) >= 12u ? 1u : 0u), i;
+    if (lp.state == LOOP_ARMED) {        /* the first chord: the loop starts on its bar */
+        if (lp.back == LOOP_PLAY)
+            eng_loop_stop();             /* (the old loop gives way) */
+        lp.state = LOOP_REC;
+        lp.first = idx;
+        lp.last = 0;
+        for (i = 0; i < ENG_LOOP_BARS; i++)
+            lp.bar[i].set = 0;
+        ph.dirty = 1;
+    }
+    idx -= lp.first;
+    if (idx >= ENG_LOOP_BARS)
+        return;
+    lp.bar[idx].k = (uint8_t)k;
+    lp.bar[idx].mode = (uint8_t)mode;
+    lp.bar[idx].key = set.key;
+    lp.bar[idx].vel = (uint8_t)v;
+    lp.bar[idx].oct = set.octave;
+    lp.bar[idx].set = 1;
+    if (idx > lp.last)
+        lp.last = (uint8_t)idx;
+}
+
 static void key_down(uint32_t k, uint32_t v, int quiet)
 {
-    int bass = clamp(53 + (int32_t)k + 12 * set.octave, 0, 127), i;
+    int bass = clamp(53 + (int32_t)k + 12 * set.octave, 0, 127), i, mode = set.chords, nc;
     const patch_t *p = eng_patch_info(set.patch);
-    ui.key_vel[k] = (uint8_t)v;
+    uint32_t v_in = v;
     int pc = bass % 12, black = (0x54A >> pc) & 1;
-    if (set.chords == MODE_CHORDS || (set.chords == MODE_ACCORDION && black)) {
-        char name[16];
-        int root = bass;
-        if (set.chords == MODE_ACCORDION) {   /* a black key: one of the key's five chords, I ii IV V vi */
-            static const int8_t DEG[12] = {0, 0, 0, 2, 0, 0, 5, 0, 7, 0, 9, 0};
-            root = bass - pc + (set.key + DEG[pc]) % 12;
-            if (root > bass + 6)
-                root -= 12;
-            v = v * 3u / 4u;             /* (the chord under the tune, softer) */
-            if (k < 7u || k >= 19u)      /* the bottom row and the top: their own voicings */
-                ui.key_n[k] = (uint8_t)accordion_row(k < 7u ? 0 : 2, DEG[pc], root, ui.key_notes[k], name);
-            else
-                ui.key_n[k] = (uint8_t)chord_build(root, set.key, p->chord, ui.key_notes[k], name);
-        } else {
-            ui.key_n[k] = (uint8_t)chord_build(root, set.key, p->chord, ui.key_notes[k], name);
-        }
+    char name[16];
+    ui.key_vel[k] = (uint8_t)v;
+    if (lp.state == LOOP_PLAY)
+        mode = MODE_TUNE;                /* a loop playing: a tune over it */
+    else if ((lp.state == LOOP_ARMED || lp.state == LOOP_REC) && mode == MODE_NOTES)
+        mode = MODE_CHORDS;              /* recording one: chords, whatever ARP says */
+    if ((nc = key_chord(k, set.octave, mode, 0, &v, ui.key_notes[k], name)) > 0) {
+        ui.key_n[k] = (uint8_t)nc;
         ui.key_arp[k] = p->mono;
-        if (ui.key_n[k])
-            eng_bass_root(ui.key_notes[k][0]);   /* the bass plays the chord's lowest note */
+        eng_bass_root(ui.key_notes[k][0]);   /* the bass plays the chord's lowest note */
         if (!quiet) {
             app_say(name, "");
             chord_show(name, ui.key_notes[k], ui.key_n[k]);
             ui.msg_until = plat_ms() + 900u;
+            if (lp.state == LOOP_ARMED || lp.state == LOOP_REC)
+                loop_take(k, mode, v_in);
         }
     } else {
         int n = bass;
-        if (set.chords == MODE_ACCORDION && !((0xAB5 >> ((pc - set.key + 12) % 12)) & 1))
+        if ((mode == MODE_ACCORDION || mode == MODE_TUNE) && !black
+            && !((0xAB5 >> ((pc - set.key + 12) % 12)) & 1))
             n += chord_flats(set.key) ? -1 : 1;   /* a white key in the key: F in G is F#, B in F is Bb */
-        else if (set.chords == MODE_NOTES)
+        else if (mode == MODE_NOTES)
             eng_bass_root(n);
         ui.key_notes[k][0] = (int16_t)n;
         ui.key_n[k] = 1;
@@ -794,11 +860,138 @@ static void keys_again(void)             /* the held keys played afresh: a new p
             key_down(k, ui.key_vel[k], 1);
 }
 
+static void loop_send(int bank)          /* each bar's chord, as the patch on now voices it in the key now */
+{
+    uint32_t i;
+    for (i = 0; i < lp.len; i++) {
+        uint32_t v = lp.bar[i].vel;
+        lp.n[i] = (uint8_t)key_chord(lp.bar[i].k, lp.bar[i].oct, lp.bar[i].mode, (int)set.key - (int)lp.bar[i].key,
+                                     &v, lp.notes[i], lp.name[i]);
+        eng_loop_chord(bank, (int)i, lp.notes[i], lp.n[i], (int)v);
+    }
+    lp.shown = -1;
+}
+
+static void loop_revoice(void)           /* another patch or key: the playing loop's chords voiced again, now */
+{
+    if (lp.state != LOOP_PLAY && !(lp.state == LOOP_ARMED && lp.back == LOOP_PLAY))
+        return;
+    lp.bank ^= 1u;
+    loop_send(lp.bank);
+    eng_loop_now(lp.bank);
+}
+
+static int32_t loop_rec_bar(void)        /* recording: the bar now, from the first chord's (-1: just before it) */
+{
+    return (int32_t)(lp.bars - lp.first);
+}
+
+static void loop_finish(void)            /* REC or PLAY while recording (or eight bars): it plays */
+{
+    uint32_t st = eng_step(), i;
+    int32_t cur = loop_rec_bar(), end = cur + ((st & 15u) >= 12u ? 1 : 0);
+    char t[12];
+    lp.len = (uint8_t)clamp(end > (int32_t)lp.last + 1 ? end : (int32_t)lp.last + 1, 1, (int32_t)ENG_LOOP_BARS);
+    if (cur < 0)                         /* (closed before the first chord's bar began: that bar is next) */
+        cur = (int32_t)lp.len - 1;
+    for (i = 1; i < lp.len; i++)         /* a bar with no chord of its own: the one before */
+        if (!lp.bar[i].set)
+            lp.bar[i] = lp.bar[i - 1u];
+    lp.bank ^= 1u;
+    loop_send(lp.bank);
+    /* the bar now is the loop's bar cur: early in it, its chord now; late in it, the next one at the bar line */
+    eng_loop_start(lp.bank, lp.len, (int)(cur % (int32_t)lp.len), (st & 15u) < 12u && loop_rec_bar() >= 0);
+    lp.state = LOOP_PLAY;
+    int_text(lp.len, t);
+    text_cat(t, lp.len == 1u ? " BAR" : " BARS");
+    app_say("LOOP", t);
+}
+
+static void loop_rec_button(void)        /* REC, a press */
+{
+    switch (lp.state) {
+    case LOOP_ARMED:                     /* again before a chord: as it was */
+        lp.state = lp.back;
+        eng_clock_keep(lp.state == LOOP_PLAY);
+        app_say("LOOP", lp.state == LOOP_PLAY ? "PLAYING" : lp.state == LOOP_STOPPED ? "STOPPED" : "OFF");
+        break;
+    case LOOP_REC:
+        loop_finish();
+        break;
+    default:                             /* off, playing or stopped: the next chords are a new loop */
+        lp.back = lp.state;
+        lp.state = LOOP_ARMED;
+        lp.seen = eng_clock_running() ? eng_step() >> 4 : 0u;   /* (a clock about to start begins on bar 0) */
+        lp.bars = 0;
+        eng_clock_keep(1);
+        app_say("LOOP", "PLAY CHORDS");
+        break;
+    }
+    ph.dirty = 1;
+}
+
+static void loop_play_button(void)       /* PLAY */
+{
+    switch (lp.state) {
+    case LOOP_REC:
+        loop_finish();
+        break;
+    case LOOP_ARMED:
+        loop_rec_button();
+        break;
+    case LOOP_PLAY:
+        eng_loop_stop();
+        eng_clock_keep(0);
+        lp.state = LOOP_STOPPED;
+        app_say("LOOP", "STOPPED");
+        break;
+    case LOOP_STOPPED: {                 /* from its first bar: now if no clock runs yet, else at the bar line */
+        int now = !eng_clock_running();
+        lp.bank ^= 1u;
+        loop_send(lp.bank);
+        eng_clock_keep(1);
+        eng_loop_start(lp.bank, lp.len, now ? 0 : lp.len - 1, now);
+        lp.state = LOOP_PLAY;
+        app_say("LOOP", "PLAYING");
+        break;
+    }
+    default:
+        app_say("LOOP", "REC FIRST");
+        break;
+    }
+    ph.dirty = 1;
+}
+
+static void loop_tick(void)              /* app_frame: the bars as they pass; the loop's chord shown as it comes */
+{
+    uint32_t b = eng_step() >> 4;
+    int cur;
+    if (b != lp.seen) {                  /* (a restarted clock counts as a new bar: it restarts on one) */
+        lp.seen = b;
+        lp.bars++;
+        if (lp.state != LOOP_OFF)
+            ph.dirty = 1;
+    }
+    if (lp.state == LOOP_REC && loop_rec_bar() >= (int32_t)ENG_LOOP_BARS)
+        loop_finish();                   /* eight bars: it closes itself */
+    cur = eng_loop_bar();
+    if (lp.state == LOOP_PLAY && cur >= 0 && cur != lp.shown) {
+        lp.shown = (int8_t)cur;
+        if (lp.n[cur]) {
+            eng_bass_root(lp.notes[cur][0]);
+            app_say(lp.name[cur], "");
+            chord_show(lp.name[cur], lp.notes[cur], lp.n[cur]);
+            ui.msg_until = plat_ms() + 900u;
+        }
+    }
+}
+
 static void key_set(int key)
 {
     set.key = (uint8_t)(((key % 12) + 12) % 12);
     set_dirty = 1;
     keys_again();
+    loop_revoice();
     app_say("KEY", KEY_NAME(set.key));
 }
 
@@ -913,6 +1106,7 @@ static void patch_set(int32_t p, int send)
     knobs_to_engine();
     beat_to_engine();                    /* the beat keeps its place; the new patch's pattern and tempo take over */
     keys_again();
+    loop_revoice();
     ph.photo = (uint8_t)(eng_patch_info(p)->photo % PHOTO_COUNT);
     if (send)
         midi_send3(0xC0u, (uint32_t)p, 0);
@@ -943,14 +1137,6 @@ static void knob_set(uint32_t k, int32_t v255, int send)
     }
 }
 
-static void hold_set(int on)
-{
-    ui.hold = (uint8_t)(on != 0);
-    eng_sustain(ui.hold);
-    midi_send3(0xB0u, 64u, ui.hold ? 127u : 0u);
-    app_say("HOLD", ui.hold ? "ON" : "OFF");
-}
-
 static void octave_step(int32_t d)
 {
     int32_t o = clamp(set.octave + d, -2, 2);
@@ -974,7 +1160,7 @@ static void ble_device_say(void)
         app_say("LINK", "LOOKING");
 }
 
-static void ble_device_button(void)      /* REC: look for another FM-1; again: link to the one ALGORITHM picks */
+static void ble_device_button(void)      /* REC held: look for another FM-1; again: link to the one ALGORITHM picks */
 {
     int ev;
     if (!btdev_busy() && !ui.looking) {
@@ -1026,8 +1212,8 @@ static void input(void)
                 octave_step(k == B_OCTUP ? 1 : -1);
             }
             break;
-        case B_PLAY:
-            hold_set(!ui.hold);
+        case B_PLAY:                     /* the loop: stop, start (or, recording, done) */
+            loop_play_button();
             break;
         case B_HOME: {                   /* the knobs back where the patch starts */
             uint32_t j;
@@ -1046,9 +1232,10 @@ static void input(void)
                 app_say("SAVE", "FAILED");
             }
             break;
-        case B_REC:
-            if (FM1B_BLE)
-                ui.rec_t = plat_ms();
+        case B_REC:                      /* the loop on its release; held, the link and Bluetooth */
+            ui.rec_t = plat_ms();
+            ui.rec_t += !ui.rec_t;       /* (0 means up) */
+            ui.rec_step = 0;
             break;
         case B_ARP:                      /* chord mode, on its release (unless a key was set while it was held) */
             ui.arp_used = 0;
@@ -1103,21 +1290,28 @@ static void input(void)
     }
     if (!(btn >> B_SEQ & 1u) && (ui.btn >> B_SEQ & 1u) && !ui.seq_used)
         beat_set(!eng_beat_on());
-    if (FM1B_BLE && ui.rec_t) {          /* REC held a second: Bluetooth off or on; a press: link */
+    if (ui.rec_t) {                      /* REC: a press, the loop; held a second, the link; three, Bluetooth */
+        uint32_t held = plat_ms() - ui.rec_t;
         if (btn >> B_REC & 1u) {
-            if (plat_ms() - ui.rec_t >= 1000u) {
-                ui.rec_t = 0;
+            if (FM1B_BLE && ui.rec_step == 0u && held >= 1000u) {
+                ui.rec_step = 1;
+                if (FM1B_BLE_CENTRAL && !set.ble_off)
+                    ble_device_button();
+                else
+                    app_say("BLUETOOTH", "IS OFF");
+            } else if (FM1B_BLE && ui.rec_step == 1u && held >= 3000u) {
+                ui.rec_step = 2;
+                ui.looking = 0;
                 set.ble_off = (uint8_t)!set.ble_off;
                 set_dirty = 1;
                 plat_ble_enable(!set.ble_off);
                 app_say("BLUETOOTH", set.ble_off ? "OFF" : "ON");
             }
         } else {
+            if (!ui.rec_step)
+                loop_rec_button();
             ui.rec_t = 0;
-            if (FM1B_BLE_CENTRAL && !set.ble_off)
-                ble_device_button();
-            else
-                app_say("BLUETOOTH", "IS OFF");
+            ui.rec_step = 0;
         }
     }
     for (k = 0; k < NE; k++) {
@@ -1154,7 +1348,8 @@ static void input(void)
     ui.keys = keys;
     ui.btn = btn;
     plat_glow(1);
-    plat_leds((set_dirty ? 1u << B_SAVE : 0u) | (ui.hold ? LED_PLAY_GREEN | 1u << B_PLAY : 0u)
+    plat_leds((set_dirty ? 1u << B_SAVE : 0u) | (lp.state == LOOP_PLAY ? LED_PLAY_GREEN | 1u << B_PLAY : 0u)
+                  | (lp.state == LOOP_REC || (lp.state == LOOP_ARMED && (eng_step() & 3u) < 2u) ? 1u << B_REC : 0u)
                   | (set.chords ? 1u << B_ARP : 0u) | (set.fuzz_off ? 0u : 1u << B_FX)
                   | (eng_filling() ? 1u << B_ENV : 0u) | (set.beat_var != 1u ? 1u << B_LFO : 0u)
                   | (set.bass ? 1u << B_GLO : 0u)
@@ -1291,8 +1486,27 @@ static void overlay(uint32_t y0, uint32_t now)
         cv_rect(12, 32, (int32_t)w + 20, 6, RGB(240, 60, 60));
     }
     if (y0 == 240u - STRIP && !(ui.knob_shown >= 0 && now < ui.knob_until)) {
-        if (ui.hold)
+        if (lp.state == LOOP_ARMED || lp.state == LOOP_REC || lp.state == LOOP_PLAY) {   /* REC, REC 3, LOOP 2/4 */
+            char t[16] = "", n[8];
+            if (lp.state == LOOP_PLAY) {
+                text_cat(t, "LOOP ");
+                int_text(eng_loop_bar() + 1, n);
+                text_cat(t, n);
+                text_cat(t, "/");
+                int_text(lp.len, n);
+            } else {
+                text_cat(t, "REC");
+                n[0] = 0;
+                if (lp.state == LOOP_REC) {
+                    text_cat(t, " ");
+                    int_text(loop_rec_bar() < 0 ? 1 : loop_rec_bar() + 1, n);
+                }
+            }
+            text_cat(t, n);
+            cv_text(12, 30, &FONT_XS, t, lp.state == LOOP_PLAY ? RGB(140, 255, 160) : RGB(255, 120, 110));
+        } else if (ui.hold) {
             cv_text(12, 30, &FONT_XS, "HOLD", RGB(140, 255, 160));
+        }
         if (eng_beat_on()) {
             char t[12];
             int_text(tempo_now(), t);
@@ -1370,6 +1584,7 @@ void app_frame(void)
 #ifndef PLAT_HOST
     c1_radio();
 #endif
+    loop_tick();
     input();
     speak();
     voices_back(now);
@@ -1533,6 +1748,8 @@ int app_expect(const char *what, int *got)
         *got = ui.hold;
     else if (!strcmp(what, "voices"))
         *got = (int)eng_voices_on();
+    else if (!strcmp(what, "held"))      /* voices not letting go */
+        *got = (int)eng_voices_held();
     else if (!strcmp(what, "photo"))
         *got = ph.photo;
     else if (!strncmp(what, "knob", 4))  /* knobN: 0..255 */
@@ -1569,6 +1786,12 @@ int app_expect(const char *what, int *got)
         *got = tempo_now();
     else if (!strcmp(what, "step"))      /* sixteenths since the beat started */
         *got = (int)eng_step();
+    else if (!strcmp(what, "loop"))      /* 0 off, 1 waiting for a chord, 2 recording, 3 playing, 4 stopped */
+        *got = lp.state;
+    else if (!strcmp(what, "loop_bars"))
+        *got = lp.len;
+    else if (!strcmp(what, "loop_bar"))  /* the loop's bar playing, from 0; -1 none */
+        *got = eng_loop_bar();
     else if (!strcmp(what, "notes")) {   /* notes the keys hold */
         int i, n = 0;
         for (i = 0; i < 128; i++)
