@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: MIT
- * Copyright (c) 2026 Hausway */
+ * Copyright (c) 2026 Alive-Stable-7254 */
 /* Album's second core (device only; included by app.c inside the unity build, after the platform).
  *
  * Core 1 renders half of the voices and the reverse reverb (engine.h) while core 0 renders the other half, inside

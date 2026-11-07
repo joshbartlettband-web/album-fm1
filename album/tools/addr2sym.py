@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2026 Hausway
+# Copyright (c) 2026 Alive-Stable-7254
 """A crash screen's addresses to function names, from an ELF's symbol table (no toolchain needed).
 
   tools/addr2sym.py ELF ADDR [ADDR ...]       e.g. addr2sym.py build/album-ble.elf 020036E0 02005C34

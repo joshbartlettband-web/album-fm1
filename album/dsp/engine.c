@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: MIT
- * Copyright (c) 2026 Hausway */
+ * Copyright (c) 2026 Alive-Stable-7254 */
 /* Album's sound engine (engine.h has the plan). Single precision throughout, no libm: fm1-base's fastmath.h, so the
  * host simulator computes the same samples as the FM-1. */
 #include "engine.h"

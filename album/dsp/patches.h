@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: MIT
- * Copyright (c) 2026 Hausway */
+ * Copyright (c) 2026 Alive-Stable-7254 */
 /* Album 01: the patches. Each has its own photo, and its sound is drawn from that photo; patches kept for later
  * are in shelf/. Every patch shares the five knobs: Glide (how far pitch wanders), Swell (the reverse reverb's
  * length), Tone (dark to bright), Blur (clear to washed out) and Fuzz (ALGORITHM: clean to all fuzz). Included by engine.c only. */

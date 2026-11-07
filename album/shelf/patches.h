@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: MIT
- * Copyright (c) 2026 Hausway */
+ * Copyright (c) 2026 Alive-Stable-7254 */
 /* On the shelf: five patches that shared the fire pit photo with RED DOOR. They are not built: Album gives each
  * patch its own photo and draws the sound from it, and RED DOOR is the one that photo kept. See README.md here for
  * bringing one back with a photo of its own. */

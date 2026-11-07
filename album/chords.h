@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: MIT
- * Copyright (c) 2026 Hausway */
+ * Copyright (c) 2026 Alive-Stable-7254 */
 /* Chord mode: a key plays a chord rooted on its own note, and where that note sits in the key decides the chord.
  *
  * The harmony is drawn from My Bloody Valentine's records. Kevin Shields has said that "a lot of the chord

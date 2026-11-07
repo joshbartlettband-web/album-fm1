@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2026 Hausway
+# Copyright (c) 2026 Alive-Stable-7254
 """Album's photos for the FM-1 screen: each one cropped square, scaled to 240 x 240, reduced to its own 16-colour
 palette (flat by default, dithered if the photo asks), packed 4 bits a pixel and LZ4-compressed in bands of 16 rows.
 

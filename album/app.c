@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: MIT
- * Copyright (c) 2026 Hausway */
+ * Copyright (c) 2026 Alive-Stable-7254 */
 /* Album 01: a few deep sounds and the photo each one came from. The keys play; PRESET picks the patch (and its
  * photo); the four knobs are Glide, Swell, Tone and Blur on every patch, and each moves the photo as it moves the
  * sound. ALGORITHM is a fifth knob, FUZZ, and FX takes the fuzz in and out. ARP turns chord mode on (chords.h) and
