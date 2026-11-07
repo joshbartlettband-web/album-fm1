@@ -159,3 +159,22 @@ expect beat_var 2
 tap GLO
 wait 30
 expect bass 1
+# a chord let go in the same moment SELECT turns: it lets go, and is not played again in the new key
+key w5 down 100
+wait 300
+key w5 up
+spin SELECT 1
+wait 200
+expect notes 0
+spin SELECT -1
+wait 200
+# the same with PRESET
+key w4 down 100
+wait 300
+key w4 up
+spin PRESET 1
+wait 300
+expect notes 0
+spin PRESET -1
+wait 300
+expect notes 0

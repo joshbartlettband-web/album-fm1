@@ -1229,6 +1229,8 @@ static void input(void)
             key_up(k);
         }
     }
+    ui.keys = keys;                      /* (now, before the knobs and buttons: a key let go in this same frame is
+                                          * not played again by keys_again, from SELECT, PRESET or ARP) */
     for (k = 0; k < NB; k++) {
         uint32_t bit = 1u << k;
         if (!(btn & bit) || (ui.btn & bit))
@@ -1380,7 +1382,6 @@ static void input(void)
             knob_set(k - EN_K1, (int32_t)set.knob[set.patch][k - EN_K1] + e * step, 1);
         }
     }
-    ui.keys = keys;
     ui.btn = btn;
     plat_glow(1);
     plat_leds((set_dirty ? 1u << B_SAVE : 0u) | (lp.state == LOOP_PLAY ? LED_PLAY_GREEN | 1u << B_PLAY : 0u)
