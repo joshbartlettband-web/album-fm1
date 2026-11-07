@@ -46,10 +46,10 @@ shows at the top for a moment when you choose it, and a knob's value shows at th
 | LFO | The beat: SPARSE, AS WRITTEN, BUSY (lit unless as written) |
 | GLO | The auto bass on or off (lit while on) |
 | SEQ | The patch's beat on or off (blinks with it). Held: ALGORITHM sets the tempo, SELECT the beat's level |
-| EDIT | Shows the MIDI channel. Held: SELECT sets it (section 9), and the top of the screen shows how hard the FM-1 is working (section 10) |
+| EDIT | Shows the MIDI channel. Held: K1 and K2 are the two effects, JET and ECHO (section 3), SELECT sets the MIDI channel (section 9), and the top of the screen shows how hard the FM-1 is working (section 10) |
 | PLAY | The chord loop: stop it, or start it again from its first bar (lit green while it plays). While recording: close the loop (section 5) |
 | OCT- / OCT+ | The octave, two down to two up |
-| HOME | This patch's five knobs and tempo back where it starts |
+| HOME | This patch's knobs, its effects and its tempo back where it starts |
 | SAVE | Keep everything (lit when something changed): section 8 |
 | REC | Record a chord loop (section 5). Held a second: link to another FM-1 (section 7). Held three seconds: Bluetooth off or on |
 | MASTER | Volume |
@@ -72,6 +72,14 @@ Every patch has the same five knobs: K1 to K4, and ALGORITHM for the fuzz. Each 
 
 The warm light in each photo (a fire, the sun, a lamp) flickers with the sound's level.
 
+**The two effects.** Hold EDIT and turn K1 or K2. They go on the whole sound, and each patch keeps its own; most
+start off.
+
+| Knob | The sound | The photo |
+| --- | --- | --- |
+| EDIT + K1 Jet | A flanger over everything, the beat too, sweeping slowly down and back up as a jet plane passes over, about every 12 seconds. Off to a deep swirl | The colors swirl round the color wheel with the sweep |
+| EDIT + K2 Echo | A dark tape echo in time with the tempo, a dotted eighth apart. Each repeat is darker and thinner than the one before and wavers a little, as tape does; the right side comes back a moment after the left. Off to long and loud | Each row trails fainter copies of itself |
+
 ## 4. The patches
 
 Each patch has its own photo, and its sound comes from that photo.
@@ -89,6 +97,7 @@ Each patch has its own photo, and its sound comes from that photo.
 | 9 | BLUESTEM | Tall prairie grass, blue sage, a moth | One note at a time: a thin reed whistle, like a blade of grass blown between the thumbs |
 | 10 | SNOWFALL | A back yard at night, snow coming down | Soft, hollow glass notes, muffled, each sinking into a long hush |
 | 11 | TOWER | A tower block lit gold by the last sun | A tall chord, octaves stacked, that starts dark and glows open after each note |
+| 12 | LATE BLOOM | One pink dahlia still open in October, the leaves fallen on the brick | A soft bell that opens after each note, the echo up so its repeats fall away like the leaves |
 
 ## 5. Chord mode
 
@@ -148,6 +157,7 @@ key, and chord mode stays on. The key shows at the bottom right. Chords you are 
 | BLUESTEM | An arpeggio: the chord's notes one at a time, up and down, in time with the beat |
 | SNOWFALL | Sixths and ninths, close at the top |
 | TOWER | Open chords, each voice doubled an octave up |
+| LATE BLOOM | Spread wide, as CLEMATIS's: added ninths with the sixth on top; V suspended |
 
 **Holding two chords** sounds both. A note they share sounds once and keeps ringing until you let go of both, as an
 open string rings through a change of chord.
@@ -193,6 +203,7 @@ light a little.
 | BLUESTEM | 168 | A double-time break, quiet and far off (after wonder 2) |
 | SNOWFALL | 64 | Almost nothing gets through the snow |
 | TOWER | 104 | Scattered late-90s dance drums, kept soft (after In Another Way) |
+| LATE BLOOM | 76 | A slow, steady brush beat, the kick barely there |
 
 Hold SEQ and turn ALGORITHM to change the tempo; each patch keeps its own, and HOME puts it back. Hold SEQ and turn
 SELECT to set the beat's level, apart from the rest of the sound: five steps a click, a bar at the bottom like the
@@ -250,6 +261,7 @@ Two linked FM-1s need the same channel, or ALL.
 | CC 120, 123 | All sound off | |
 | CC 21 | The beat's level | SEQ held and SELECT |
 | CC 22, 23, 24 | The fuzz's low, mid, high | FX held and K1, K2, K3 |
+| CC 25, 26 | Jet, Echo | EDIT held and K1, K2 |
 | Clock, start, stop | The beat follows another FM-1 or a computer | While this FM-1's beat runs |
 
 Nothing received is sent back out, so two linked FM-1s never echo.

@@ -4,12 +4,14 @@ A series of firmwares for the M-VAVE FM-1, one per record: a few deep sounds and
 each sound moving its photo as it plays. **Album 01** follows one record: chords bent the whole
 time they ring, heard through a reverse reverb.
 
-- Eleven patches so far, up to twelve: RED DOOR, MAPLE, DAHLIA, FLAME, CLEMATIS, WHIRL, WINDOW, PASTURE, BLUESTEM,
-  SNOWFALL, TOWER.
+- Twelve patches: RED DOOR, MAPLE, DAHLIA, FLAME, CLEMATIS, WHIRL, WINDOW, PASTURE, BLUESTEM, SNOWFALL, TOWER,
+  LATE BLOOM.
   One photo, one patch, the sound drawn from the photo. Five earlier patches that shared RED DOOR's photo are on
   the shelf (`album/shelf/`)
 - Five knobs on every patch: Glide, Swell, Tone, Blur, and Fuzz on ALGORITHM (a fuzz pedal on the whole chord, FX
   in and out, with its own low, mid and high), each acting on the sound and the photo
+- Two effects on the whole sound, under EDIT: JET, a slow jet-plane flanger (K1), and ECHO, a dark tape echo in time
+  with the tempo (K2)
 - A chord loop to jam over (REC): play chords, one a bar, for 1 to 8 bars, and the keys play single notes in the key
   over them; PLAY stops and starts it
 - Chord mode (ARP): every key plays a chord, the black keys too, in any key (SELECT); chords drawn from My Bloody

@@ -20,8 +20,9 @@
 #define ENG_BLOCK_MAX 256u
 #define ENG_SUB 16u                      /* samples between pitch, filter and tremolo updates */
 
-/* K_FUZZ: ALGORITHM; K_FZLO, K_FZMID, K_FZHI: the fuzz's own EQ (FX held and K1 to K3), 0.5 flat */
-enum { K_GLIDE, K_SWELL, K_TONE, K_BLUR, K_FUZZ, K_FZLO, K_FZMID, K_FZHI, NKNOB };
+/* K_FUZZ: ALGORITHM; K_FZLO, K_FZMID, K_FZHI: the fuzz's own EQ (FX held and K1 to K3), 0.5 flat; K_JET, K_ECHO:
+ * the two effects on the whole sound (EDIT held and K1, K2) */
+enum { K_GLIDE, K_SWELL, K_TONE, K_BLUR, K_FUZZ, K_FZLO, K_FZMID, K_FZHI, K_JET, K_ECHO, NKNOB };
 enum { WAVE_SAW, WAVE_PULSE, WAVE_TRI, WAVE_SINE, WAVE_FM };
 /* chord mode's voicings, one a patch (the voicings themselves are the app's: chords.h) */
 enum { CH_OPEN, CH_ORGAN, CH_POWER, CH_DARK, CH_SPREAD, CH_CLUSTER, CH_SEVENTH, CH_FIFTHS, CH_ARP, CH_ICE, CH_TALL,
@@ -73,6 +74,7 @@ typedef struct {
     float diffuse;                       /* how much Blur smears the reverb, 0..1 */
     float tape;                          /* saturation and wow, 0..1 */
     float level;                         /* the patch's loudness trim */
+    float echo_beats;                    /* the echo's repeat, in beats at the tempo (0: a dotted eighth, 0.75) */
     float knob[NKNOB];                   /* the knobs where the patch starts */
     uint8_t chord;                       /* CH_*: how chord mode voices a chord on this patch */
     uint8_t arp_div;                     /* mono patches in chord mode: sixteenths between the arpeggio's notes */
@@ -128,6 +130,7 @@ int eng_patch_count(void);
 const patch_t *eng_patch_info(int p);
 float eng_level(void);                   /* the output's level, 0..~1, smoothed: the screen's flicker */
 float eng_arm(void);                     /* the arm now, -1 (bent all the way down) .. 0: the screen's waver */
+float eng_jet(void);                     /* the jet's sweep now, -1 .. 1, times how far JET is up: the screen's swirl */
 uint32_t eng_voices_on(void);            /* voices sounding */
 uint32_t eng_voices_held(void);          /* of them, those not letting go (a key, HOLD or the loop holds them) */
 int eng_voice_cap(int n);                /* voices allowed (the overload's shedding); returns the cap */

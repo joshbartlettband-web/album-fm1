@@ -46,6 +46,10 @@ static const beat_t BEAT_TOWER = {.bpm = 104.0f, .tone = 5000.0f, .send = 0.25f,
     .kick = "x...x...x...x...", .snare = "....x.......x...", .hat = "-.....-.-.....-.",
     .open = "..o...o...o...o.", .rim = "...-..-....-.-.."};
 
+/* late in the year, under a grey sky: a slow, steady brush beat, the kick barely there */
+static const beat_t BEAT_LATE_BLOOM = {.bpm = 76.0f, .tone = 2200.0f, .send = 0.4f, .level = 0.85f, .brush = 1,
+    .kick = "x.......x..-....", .snare = "....o.......o...", .hat = "-.-.-.-.-.-.-.-."};
+
 static const patch_t PATCHES[] = {
     /* Red Door: a fire pit at night, everything washed red from the door behind it. The main glide chord bed: three
      * detuned saws bent all the time, heard mostly through the reverse reverb. */
@@ -153,5 +157,17 @@ static const patch_t PATCHES[] = {
      .swell_lo = 0.2f, .swell_hi = 1.3f, .wet_lo = 0.3f, .wet_hi = 0.9f, .diffuse = 0.75f,
      .tape = 0.65f, .level = 1.2f, .knob = {0.35f, 0.5f, 0.55f, 0.5f, 0.45f},
      .chord = CH_TALL, .beat = &BEAT_TOWER},
+    /* Late Bloom: one pink dahlia still open in October, a bud beside it, the year's leaves fallen yellow on the
+     * brick under a grey sky. A soft bell that opens after each note as the flower does, its echoes falling away
+     * like the leaves. */
+    {.name = "LATE BLOOM", .photo = 12, .wave = WAVE_FM, .oscs = 2, .detune = 7.0f, .fm_ratio = 2.0f,
+     .fm_index = 0.8f, .fm_decay = 2.0f, .sub = 0.15f, .noise = 0.02f,
+     .cut_lo = 500.0f, .cut_hi = 5000.0f, .res = 0.12f, .fenv = -1.6f, .fenv_decay = 0.9f, .breath = 0.2f,
+     .att = 0.03f, .dec = 3.2f, .sus = 0.45f, .rel = 2.4f,
+     .arm_cents = 28.0f, .drift_cents = 6.0f, .arm_rate = 0.45f,
+     .swell_lo = 0.2f, .swell_hi = 1.3f, .wet_lo = 0.3f, .wet_hi = 0.9f, .diffuse = 0.8f,
+     .tape = 0.4f, .level = 1.15f, .echo_beats = 0.75f,
+     .knob = {0.35f, 0.5f, 0.45f, 0.5f, 0.15f, [K_ECHO] = 0.5f},
+     .chord = CH_SPREAD, .beat = &BEAT_LATE_BLOOM},
 };
 #define NPATCH ((int)(sizeof PATCHES / sizeof PATCHES[0]))

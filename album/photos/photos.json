@@ -34,5 +34,8 @@
    "vivid": 1.2, "dither": false},
   {"file": "12-boot.jpg", "crop": [0, 0, 720], "boot": true,
    "keep": ["#F8F0FA", "#E040B0", "#2A1428"],
-   "vivid": 1.2, "dither": false}
+   "vivid": 1.2, "dither": false},
+  {"file": "13-late-bloom.jpg", "crop": [40, 0, 720],
+   "keep": ["#F2A0C8", "#F0A018", "#1E3424", "#E2C064", "#A0645A"],
+   "vivid": 1.1, "dither": false}
 ]
