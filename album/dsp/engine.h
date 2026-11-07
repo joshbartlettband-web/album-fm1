@@ -100,6 +100,7 @@ void eng_fill(int held);                 /* FILL down (1): a fill to the bar's e
 void eng_beat_var(int v);                /* 0 sparse, 1 as written, 2 busy */
 void eng_bass(int on);                   /* the auto bass: the chord's root, on the kick, while the beat runs */
 void eng_bass_root(int note);            /* the note it plays (any octave: it finds its own) */
+int eng_bass_last(uint32_t *step);       /* the note it played last (-1 none) and on which sixteenth */
 int eng_filling(void);                   /* a fill is playing */
 void eng_arp_note(int note, int on);     /* a mono patch in chord mode: a note into (or out of) the arpeggio */
 

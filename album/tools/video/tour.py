@@ -328,8 +328,8 @@ def tour(probe=False):
     at(8, 60)
     T.tap("REC", 40)
     T.cap("REC  A CHORD LOOP", "REC again: four bars, looping. Now play over it")
-    tune = [(0, "w13", 2), (0.5, "w12", 1), (0.75, "w11", 1), (1, "w9", 3), (1.75, "w8", 1),
-            (2, "w9", 1), (2.25, "w11", 1), (2.5, "w12", 2), (3, "w10", 2), (3.5, "w8", 2)]
+    tune = [(0, "w13", 2), (0.5, "w12", 1), (0.75, "w11", 1), (1, "w9", 3), (1.75, "w8", 1),   # (D and C over B flat)
+            (2, "w9", 1), (2.25, "w11", 1), (2.5, "w12", 2), (3, "w12", 2), (3.5, "w11", 2)]
     for b, k, q in tune:                 # (q: quarter notes long)
         at(8 + b, 40)
         T.down(k, 92)

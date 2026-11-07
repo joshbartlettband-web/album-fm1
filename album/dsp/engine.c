@@ -824,6 +824,7 @@ static void render_half(uint32_t lo, float *o, float *t)   /* t: the tune notes'
 typedef struct { int8_t note[LOOP_NOTES]; uint8_t n, vel; } loop_chord_t;
 static loop_chord_t loop_bank[2][ENG_LOOP_BARS];
 static uint8_t loop_use, loop_len, loop_run, loop_pos, loop_due;
+static volatile int bass_root;           /* (the auto bass's note, below: the loop sets it as its chord comes) */
 static volatile uint8_t loop_start_pos, clock_keep;
 
 void eng_loop_chord(int bank, int bar, const int16_t *notes, int n, int vel)
@@ -896,6 +897,8 @@ static void loop_play(void)              /* eng_begin: the due bar's chord */
     if (!loop_run || !loop_len)
         return;
     c = &loop_bank[loop_use][loop_pos];
+    if (c->n)
+        bass_root = c->note[0];          /* (the bass: this chord's lowest note) */
     for (i = 0; i < 128u; i++) {         /* let go of what the new chord does not have */
         if (!loop_on[i])
             continue;
@@ -1035,6 +1038,26 @@ static struct {
     float ph, f, target, env, lp1, lp2, v;
 } BS;
 static float dc_bass, bass_glide;
+static int bass_last = -1;               /* the bass's last note and the sixteenth it came on (the harmonics test) */
+static uint32_t bass_last_step, bass_age;  /* bass_age: samples since it came */
+static int bass_from;                    /* the root it came on */
+#define BASS_LATE (0.125f * ENG_FS)      /* a chord this late after the kick still gets the bass: it slides there */
+
+static void bass_late(uint32_t n)        /* eng_begin: a new root just after the kick (a chord played a moment late) */
+{
+    int r = bass_root;
+    bass_age += n;
+    if (bass_on && BS.env > 0.02f && (float)bass_age < BASS_LATE && r >= 0 && r != bass_from) {
+        while (r > 43)
+            r -= 12;
+        while (r < 31)
+            r += 12;
+        BS.target = 440.0f * fm_exp2f(((float)r - 69.0f) * (1.0f / 12.0f));
+        bass_from = bass_root;
+        bass_last = r;
+    }
+}
+int eng_bass_last(uint32_t *step) { *step = bass_last_step; return bass_last; }
 
 static void fire(uint32_t step)          /* a sixteenth: the arpeggio's next note, the kit's hits, the bass */
 {
@@ -1043,9 +1066,12 @@ static void fire(uint32_t step)          /* a sixteenth: the arpeggio's next not
     uint32_t s = step & 15u, bar = step >> 4;
     int sparse = beat_var == 0, busy = beat_var == 2;
     float v;
-    if (loop_run && s == 0u) {           /* a bar line: the loop's next chord */
+    if (loop_run && s == 0u) {           /* a bar line: the loop's next chord, and the bass with it on this downbeat's
+                                          * kick (the chord itself starts with the next block) */
         loop_pos = (uint8_t)((loop_pos + 1u) % loop_len);
         loop_due = 1;
+        if (loop_bank[loop_use][loop_pos].n)
+            bass_root = loop_bank[loop_use][loop_pos].note[0];
     }
     if (p->mono && A.n && p->arp_div && s % p->arp_div == 0u)
         A.due = 1;
@@ -1072,6 +1098,10 @@ static void fire(uint32_t step)          /* a sixteenth: the arpeggio's next not
             while (n < 31)
                 n += 12;
             BS.target = 440.0f * fm_exp2f(((float)n - 69.0f) * (1.0f / 12.0f));
+            bass_last = n;
+            bass_last_step = step;
+            bass_age = 0;
+            bass_from = bass_root;
             if (BS.env < 0.02f)
                 BS.f = BS.target;
             BS.env = 1.0f;
@@ -1340,6 +1370,7 @@ void eng_begin(uint32_t n)
     }
     loop_play();
     arp_play();
+    bass_late(n);
     pulse *= 0.82f;
     B.n = n;
     B.nsub = (n + ENG_SUB - 1u) / ENG_SUB;

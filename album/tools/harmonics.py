@@ -34,7 +34,7 @@ def load(d):
     meta = json.loads((d / "tour.json").read_text())
     probes = []
     for ln in (d / "run.log").read_text().splitlines():
-        m = re.match(r"heldnotes (\d+) oct (-?\d+) int (\d+): held([\d ]*) ; loop([\d ]*)$", ln)
+        m = re.match(r"heldnotes (\d+) oct (-?\d+) int (\d+): held([\d ]*) ; loop([\d ]*)(?: ;.*)?$", ln)
         if m:
             probes.append((int(m.group(1)), int(m.group(2)), int(m.group(3)),
                            [int(x) for x in m.group(4).split()], [int(x) for x in m.group(5).split()]))

@@ -1828,6 +1828,10 @@ int app_expect(const char *what, int *got)
         *got = lp.len;
     else if (!strcmp(what, "loop_bar"))  /* the loop's bar playing, from 0; -1 none */
         *got = eng_loop_bar();
+    else if (!strcmp(what, "bass_note")) { /* the auto bass's note now (MIDI), -1 none yet */
+        uint32_t st;
+        *got = eng_bass_last(&st);
+    }
     else if (!strcmp(what, "notes")) {   /* notes the keys hold */
         int i, n = 0;
         for (i = 0; i < 128; i++)
@@ -1854,6 +1858,11 @@ int app_host_cmd(const char *cmd, const char *a, const char *b, const char *c, c
     printf(" ; loop");
     for (i = 0; i < nl; i++)
         printf(" %d", loop[i]);
+    {
+        uint32_t st;
+        int bn = eng_bass_last(&st);
+        printf(" ; bass %d at %u ; step %u", bn, (unsigned)st, (unsigned)eng_step());
+    }
     printf("\n");
     return 1;
 }
