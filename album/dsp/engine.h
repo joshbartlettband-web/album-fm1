@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: MIT
- * Copyright (c) 2026 Hausway */
+ * Copyright (c) 2026 Alive-Stable-7254 */
 /* Album's sound engine: detuned voices that never sit still in pitch (the tremolo arm of glide guitar), through a
  * fully wet reverse reverb, a two-speed tremolo and a little tape.
  *

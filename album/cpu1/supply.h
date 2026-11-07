@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: MIT
- * Copyright (c) 2026 Hausway */
+ * Copyright (c) 2026 Alive-Stable-7254 */
 /* Album's supply setup (device only; included by app.c inside the unity build, after the platform, whose fm1_sys.h
  * gives the P33 access). fm1-base raises VDC14 and SYSVDD; this adds the rest of M-VAVE's own start. */
 /* ------------------------------------------------- the stock supply setup --- */

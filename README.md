@@ -56,4 +56,4 @@ Each patch gets its own photo, and the sound comes from what is in it.
 
 MIT (`LICENSE`), except `album/cpu1/entry.S`, whose four instructions come from felucca-bsp and stay MPL-2.0. Built on
 fm1-base by Charles Vestal and felucca-bsp by Leo Kuroshita, Hügelton Instruments (both MPL-2.0, in `base/`). The Bluetooth build links JieLi's AC79 SDK libraries (Apache-2.0, not in this repository). The photos are
-Hausway's. M-VAVE and FM-1 are trademarks of their owners; Album is not affiliated with M-VAVE.
+by u/Alive-Stable-7254. M-VAVE and FM-1 are trademarks of their owners; Album is not affiliated with M-VAVE.

@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: MIT
- * Copyright (c) 2026 Hausway */
+ * Copyright (c) 2026 Alive-Stable-7254 */
 /* Album 01: an fm1-base firmware. This header is the app's half of the contract with the platform
  * (base/device/unity.c, base/host/plat_host.c). */
 #pragma once

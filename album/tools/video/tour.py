@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2026 Hausway
+# Copyright (c) 2026 Alive-Stable-7254
 """The front page's video, part 1: a simulator script that plays the tour and takes the screen 30 times a second.
 
   python3 album/tools/video/tour.py OUT_DIR       writes OUT_DIR/tour.txt and OUT_DIR/tour.json

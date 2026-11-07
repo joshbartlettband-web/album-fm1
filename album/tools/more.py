@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2026 Hausway
+# Copyright (c) 2026 Alive-Stable-7254
 """Album's front page joins Josh's other projects: the "Other projects by Josh" menu at the top and the cards at the
 bottom, as on the Rainbow mode, Double Rainbow and Fretbound pages (the same markup, in Album's paper and ink), and
 their pictures from site/more/.

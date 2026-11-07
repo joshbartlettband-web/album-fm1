@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2026 Hausway
+# Copyright (c) 2026 Alive-Stable-7254
 """The front page's video, part 3: the screenshot on the front page (site/landing.md's picture) becomes the video,
 with the screenshot as its poster until it plays, and a link to download it.
 

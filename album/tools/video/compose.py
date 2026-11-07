@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2026 Hausway
+# Copyright (c) 2026 Alive-Stable-7254
 """The front page's video, part 2: tour.py's frames and sound into an MP4, 1080 x 1350 at 30 frames a second. The
 FM-1's screen at 3.6 times, the keys held under it in the colours the screen spells their notes in, the captions
 over it.
