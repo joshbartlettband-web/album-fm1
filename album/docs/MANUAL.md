@@ -46,7 +46,7 @@ shows at the top for a moment when you choose it, and a knob's value shows at th
 | LFO | The beat: SPARSE, AS WRITTEN, BUSY (lit unless as written) |
 | GLO | The auto bass on or off (lit while on) |
 | SEQ | The patch's beat on or off (blinks with it). Held: ALGORITHM sets the tempo, SELECT the beat's level |
-| EDIT | Shows the MIDI channel. Held: K1 and K2 are the two effects, JET and ECHO (section 3), SELECT sets the MIDI channel (section 9), and the top of the screen shows how hard the FM-1 is working (section 10) |
+| EDIT | Shows the MIDI channel. Held: K1 to K4 are the four effects, JET, ECHO, DRIVE and CHORUS (section 3), SELECT sets the MIDI channel (section 9), and the top of the screen shows how hard the FM-1 is working (section 10) |
 | PLAY | The chord loop: stop it, or start it again from its first bar (lit green while it plays). While recording: close the loop (section 5) |
 | OCT- / OCT+ | The octave, two down to two up |
 | HOME | This patch's knobs, its effects and its tempo back where it starts |
@@ -72,13 +72,15 @@ Every patch has the same five knobs: K1 to K4, and ALGORITHM for the fuzz. Each 
 
 The warm light in each photo (a fire, the sun, a lamp) flickers with the sound's level.
 
-**The two effects.** Hold EDIT and turn K1 or K2. They go on the whole sound, and each patch keeps its own; most
+**The four effects.** Hold EDIT and turn K1 to K4. They go on the whole sound, and each patch keeps its own; most
 start off.
 
 | Knob | The sound | The photo |
 | --- | --- | --- |
 | EDIT + K1 Jet | A flanger over everything, the beat too, sweeping slowly down and back up as a jet plane passes over, about every 12 seconds. Off to a deep swirl | The colors swirl round the color wheel with the sweep |
 | EDIT + K2 Echo | A dark tape echo in time with the tempo, a dotted eighth apart. Each repeat is darker and thinner than the one before and wavers a little, as tape does; the right side comes back a moment after the left. Off to long and loud | Each row trails fainter copies of itself |
+| EDIT + K3 Drive | A valve amp turned up, after the fuzz pedal and before the reverb, as a guitar's chord goes: it leans one way, as a valve does, and the more it drives the warmer the cabinet makes it, so it never fizzes. The level stays about where it was | The light warms, toward amber |
+| EDIT + K4 Chorus | Two players a hair apart: the sound read back a few milliseconds late, the delay sweeping about every two seconds, the right side opposite the left. Not the beat | Red and blue drift apart and back with the sweep |
 
 ## 4. The patches
 
@@ -263,7 +265,7 @@ Two linked FM-1s need the same channel, or ALL.
 | CC 120, 123 | All sound off | |
 | CC 21 | The beat's level | SEQ held and SELECT |
 | CC 22, 23, 24 | The fuzz's low, mid, high | FX held and K1, K2, K3 |
-| CC 25, 26 | Jet, Echo | EDIT held and K1, K2 |
+| CC 25, 26, 27, 28 | Jet, Echo, Drive, Chorus | EDIT held and K1, K2, K3, K4 |
 | Clock, start, stop | The beat follows another FM-1 or a computer | While this FM-1's beat runs |
 
 Nothing received is sent back out, so two linked FM-1s never echo.

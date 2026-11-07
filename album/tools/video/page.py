@@ -19,12 +19,12 @@ CSS = """<style>
   figure.tour figcaption { margin-top: .6rem; }
 </style>
 """
-FIG = ('<figure class="tour"><video controls playsinline preload="none" poster="{poster}" aria-label="A nearly three '
-       'minute tour of Album 01 on the FM-1: Red Door playing four chords, the five knobs, the jet and the echo, '
+FIG = ('<figure class="tour"><video controls playsinline preload="none" poster="{poster}" aria-label="A three '
+       'minute tour of Album 01 on the FM-1: Red Door playing four chords, the five knobs, the four effects, '
        'all twelve patches and their photos, chord mode, accordion and notes, the beat, and recording a chord loop '
        'to play over.">'
        '<source src="{video}" type="video/mp4"></video><figcaption>Every patch, the knobs and the effects, the chord '
-       'modes, the beat and the chord loop, in under three minutes. Recorded from the emulator, the same code the FM-1 runs. '
+       'modes, the beat and the chord loop, in about three minutes. Recorded from the emulator, the same code the FM-1 runs. '
        '<a href="{video}" download="album-01.mp4">Download the video</a>.</figcaption></figure>')
 
 

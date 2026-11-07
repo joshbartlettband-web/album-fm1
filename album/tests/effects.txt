@@ -63,3 +63,38 @@ key w7 up
 wait 4000
 wavstop
 shot late-bloom.png
+# EDIT held and K3, K4: the drive and the chorus, out as CC 27 and 28; MIDI in sets them; HOME puts them back
+turn PRESET 1
+wait 300
+expect patch 0
+out
+press EDIT
+spin K3 1
+wait 60
+spin K4 1
+wait 60
+release EDIT
+wait 40
+expect knob10 5
+expect knob11 5
+expect_out USB B0 1B 02
+expect_out USB B0 1C 02
+midi B0 1B 50
+midi B0 1C 60
+wait 60
+expect knob10 161
+expect knob11 193
+wav drive-chorus.wav
+key w4 down 100
+wait 3000
+key w4 up
+key w9 down 100
+wait 3000
+key w9 up
+wait 2500
+wavstop
+shot drive-chorus.png
+tap HOME
+wait 60
+expect knob10 0
+expect knob11 0
