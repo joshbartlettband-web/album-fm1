@@ -369,15 +369,59 @@ static void all_quick(void)              /* everything out within ~30 ms, reverb
 }
 
 /* --------------------------------------------------------- the arpeggio --- */
-/* a mono patch in chord mode walks the chord's notes up and down, one each arp_div sixteenths of the clock, sliding
- * from one to the next with the filter's envelope restarted on each (a small accent, no new attack) */
+/* a mono patch in chord mode walks the chord's notes on the clock's sixteenths, so it sits on the beat (the patch's
+ * tempo, or a clock coming in). With a phrase (patch_t arp), a figure a bar: each bar starts its walk again at the
+ * bar line, an accent ('x') is louder than a note ('o'), a held step lets the note ring on, a rest lets it go so the
+ * next one starts afresh; notes straight after one another slide, as before. Now and then a soft note is left out or
+ * an accent jumps an octave, so it breathes without losing its place. Without one, a note each arp_div sixteenths.
+ * The first note of a chord waits for the next sixteenth when the clock already runs, and starts it when not */
+enum { ARP_NOTE, ARP_REST };
 static struct {
     int8_t note[12];
     uint8_t sus[12];                     /* let go while HOLD was on: dropped when it goes off */
-    uint32_t n, idx;
+    uint32_t n, idx, count;
     int dir;
     uint8_t vel, playing, due;
+    uint8_t act, accent, oct, order;     /* this step: a note or a rest, accented, an octave up; the bar's walk */
+    uint8_t first, grid;                 /* a chord's first note: due; waiting for the next sixteenth */
 } A;
+static uint32_t arp_rng = 0x6A09E667u;
+static uint8_t clock_fresh;              /* the clock started in this block (eng_begin): the first note plays now */
+
+static void arp_walk_start(uint8_t order)   /* a bar's walk, from its start */
+{
+    A.order = order;
+    A.count = 0;
+    A.dir = 1;
+    A.idx = (order == ARP_DOWN || order == ARP_PINKY) && A.n ? A.n - 1u : 0u;   /* (PINKY: from the top) */
+}
+
+static void arp_step(const arp_t *ar, uint32_t step)   /* fire(): this sixteenth of the phrase */
+{
+    uint32_t s = step & 15u, bar = (step >> 4) & 3u;
+    char c = ar->fig[bar][s];
+    if (s == 0u)
+        arp_walk_start(ar->order[bar]);
+    if (A.grid) {                        /* a chord's first note: on this sixteenth, whatever the figure has */
+        A.grid = 0;
+        if (c != 'x' && c != 'o')
+            c = 'x';
+    }
+    if (c == '.') {
+        A.act = ARP_REST;
+        A.due = 1;
+    } else if (c == 'x' || c == 'o') {
+        float r = rndf(&arp_rng);
+        A.accent = (uint8_t)(c == 'x');
+        A.oct = 0;
+        A.act = ARP_NOTE;
+        if (!A.accent && r < 0.08f)      /* now and then a soft note left out */
+            A.act = ARP_REST;
+        else if (A.accent && r > 0.88f)  /* or an accent an octave up */
+            A.oct = 12;
+        A.due = 1;
+    }
+}
 
 static void arp_note(int note, int on, int vel)
 {
@@ -398,9 +442,12 @@ static void arp_note(int note, int on, int vel)
         A.note[i] = (int8_t)note;
         A.sus[i] = 0;
         A.vel = (uint8_t)vel;
-        if (A.n++ == 0u) {               /* the first note: now, and the walk starts at the bottom */
-            A.idx = 0;
-            A.dir = 1;
+        if (A.n++ == 0u) {               /* the first note: on the next sixteenth (arp_play), the walk from the bottom */
+            arp_walk_start(ARP_UPDOWN);
+            A.act = ARP_NOTE;
+            A.accent = 1;
+            A.oct = 0;
+            A.first = 1;
             A.due = 1;
         }
         return;
@@ -453,11 +500,25 @@ static void arp_play(void)               /* eng_begin: the next note, or let go 
     if (!A.due)
         return;
     A.due = 0;
+    if (A.first) {                       /* the clock already ran: wait for its next sixteenth (fire) */
+        A.first = 0;
+        if (!clock_fresh && B.p->arp) {
+            A.grid = 1;
+            return;
+        }
+    }
     if (mono_n)                          /* a tune over it (ACCORDION): the arpeggio waits for it */
         return;
+    if (A.act == ARP_REST) {             /* a rest: let go; the next note starts afresh */
+        if (m->stage != ST_OFF && m->stage != ST_REL)
+            voice_release(m);
+        return;
+    }
     {
-        int note = A.note[A.idx];
-        float v = (float)A.vel / 127.0f;
+        int note = A.note[A.idx] + A.oct;
+        float v = (float)A.vel / 127.0f * (A.accent ? 1.0f : 0.7f);
+        while (note > 96)
+            note -= 12;
         if (!A.playing || m->stage == ST_OFF || m->stage == ST_REL) {
             voice_start(m, note, v, m->stage == ST_OFF);
             A.playing = 1;
@@ -468,10 +529,24 @@ static void arp_play(void)               /* eng_begin: the next note, or let go 
             m->fenv = 1.0f;
             m->fm_env = 1.0f;
         }
-        if (A.n > 1u) {                  /* up, then down, the ends not repeated */
-            if ((A.dir > 0 && A.idx + 1u >= A.n) || (A.dir < 0 && A.idx == 0u))
-                A.dir = -A.dir;
-            A.idx = (uint32_t)((int)A.idx + A.dir);
+        if (A.n > 1u) {                  /* the next note of the walk */
+            A.count++;
+            switch (A.order) {
+            case ARP_UP:
+                A.idx = (A.idx + 1u) % A.n;
+                break;
+            case ARP_DOWN:
+                A.idx = (A.idx + A.n - 1u) % A.n;
+                break;
+            case ARP_PINKY:              /* the top, then one of the rest coming down, the top again ... */
+                A.idx = (A.count & 1u) ? A.n - 2u - (A.count / 2u) % (A.n - 1u) : A.n - 1u;
+                break;
+            default:                     /* up, then down, the ends not repeated */
+                if ((A.dir > 0 && A.idx + 1u >= A.n) || (A.dir < 0 && A.idx == 0u))
+                    A.dir = -A.dir;
+                A.idx = (uint32_t)((int)A.idx + A.dir);
+                break;
+            }
         }
     }
 }
@@ -1073,8 +1148,16 @@ static void fire(uint32_t step)          /* a sixteenth: the arpeggio's next not
         if (loop_bank[loop_use][loop_pos].n)
             bass_root = loop_bank[loop_use][loop_pos].note[0];
     }
-    if (p->mono && A.n && p->arp_div && s % p->arp_div == 0u)
-        A.due = 1;
+    if (p->mono && A.n) {                /* the arpeggio: its phrase's step, or a note each arp_div */
+        if (p->arp)
+            arp_step(p->arp, step);
+        else if (p->arp_div && s % p->arp_div == 0u) {
+            A.act = ARP_NOTE;
+            A.accent = 1;
+            A.oct = 0;
+            A.due = 1;
+        }
+    }
     if (!C.on || !b) {
         filling = 0;
         return;
@@ -1364,12 +1447,14 @@ void eng_begin(uint32_t n)
         if (want && !C.run) {
             clock_start(0);
             C.fired = 1;                 /* (its first note is already due) */
+            clock_fresh = 1;
         } else if (!want) {
             C.run = 0;
         }
     }
     loop_play();
     arp_play();
+    clock_fresh = 0;
     bass_late(n);
     pulse *= 0.82f;
     B.n = n;
