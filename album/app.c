@@ -1838,6 +1838,25 @@ int app_expect(const char *what, int *got)
         return 0;
     return 1;
 }
+
+int app_host_cmd(const char *cmd, const char *a, const char *b, const char *c, const char *d)
+{
+    int notes[ENG_VOICES], loop[16], n, nl, i;
+    (void)a, (void)b, (void)c, (void)d;
+    if (strcmp(cmd, "heldnotes"))       /* "heldnotes MS oct O int I: held N N ... ; loop N N ...", O and I the patch's */
+        return 0;
+    n = eng_held_notes(notes, (int)ENG_VOICES);
+    nl = eng_loop_notes(loop, 16);
+    printf("heldnotes %u oct %d int %d: held", (unsigned)plat_ms(), (int)eng_patch_info(set.patch)->octave,
+           (int)eng_patch_info(set.patch)->interval);
+    for (i = 0; i < n; i++)
+        printf(" %d", notes[i]);
+    printf(" ; loop");
+    for (i = 0; i < nl; i++)
+        printf(" %d", loop[i]);
+    printf("\n");
+    return 1;
+}
 #else
 int app_expect(const char *what, int *got)
 {

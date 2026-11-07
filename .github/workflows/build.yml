@@ -36,6 +36,12 @@ jobs:
             echo "== $t"
             album/build/host/album_host "$t" out || exit 1   # (a failed test fails the build)
           done
+      - name: Harmonics (the tour, listened to)
+        run: |
+          # nothing left sounding that no key or loop holds, and no scene mostly other than what is played
+          python3 album/tools/video/tour.py tourcheck --probe
+          album/build/host/album_host tourcheck/tour.txt tourcheck > tourcheck/run.log
+          python3 album/tools/harmonics.py tourcheck --max-stray 0.7 --max-stuck 0
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02   # v4.6.2
         with:
           name: simulator-output

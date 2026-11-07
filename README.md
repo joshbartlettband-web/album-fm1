@@ -40,6 +40,8 @@ git clone --recursive https://github.com/joshbartlettband-web/album-fm1
 pip install Pillow numpy
 python3 base/tools/build.py album --host                      # the simulator
 album/build/host/album_host album/tests/basic.txt out          # a test: WAVs and screenshots in out/
+python3 album/tools/video/tour.py tc --probe && album/build/host/album_host tc/tour.txt tc > tc/run.log
+python3 album/tools/harmonics.py tc                           # the tour, listened to: notes stuck, sound tangled
 python3 base/tools/build.py album                             # the firmware (JieLi's toolchain: base/tools/get_toolchain.sh)
 ```
 

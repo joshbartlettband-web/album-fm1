@@ -126,6 +126,7 @@ void eng_loop_start(int bank, int bars, int pos, int now);
 void eng_loop_now(int bank);             /* the bank re-voiced (another patch, another key): its bar's chord, now */
 void eng_loop_stop(void);
 int eng_loop_bar(void);                  /* the loop's bar playing, -1 while it is off */
+int eng_loop_notes(int *out, int max);   /* the notes it holds now, lowest first: how many */
 
 int eng_patch_count(void);
 const patch_t *eng_patch_info(int p);
@@ -134,6 +135,7 @@ float eng_arm(void);                     /* the arm now, -1 (bent all the way do
 float eng_jet(void);                     /* the jet's sweep now, -1 .. 1, times how far JET is up: the screen's swirl */
 uint32_t eng_voices_on(void);            /* voices sounding */
 uint32_t eng_voices_held(void);          /* of them, those not letting go (a key, HOLD or the loop holds them) */
+int eng_held_notes(int *out, int max);   /* their notes, lowest first: how many (the simulator's harmonics test) */
 int eng_voice_cap(int n);                /* voices allowed (the overload's shedding); returns the cap */
 
 void eng_begin(uint32_t n);

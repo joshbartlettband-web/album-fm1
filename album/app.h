@@ -43,3 +43,5 @@ void app_say(const char *a, const char *b);
 
 #define APP_HOST_EXPECT
 int app_expect(const char *what, int *got);
+#define APP_HOST_CMD                     /* heldnotes: the time and the notes held, a line, for tools/harmonics.py */
+int app_host_cmd(const char *cmd, const char *a, const char *b, const char *c, const char *d);

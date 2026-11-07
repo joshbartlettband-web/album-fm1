@@ -156,6 +156,22 @@ const patch_t *eng_patch_info(int p) { return &PATCHES[(p % NPATCH + NPATCH) % N
 float eng_level(void) { return level_now; }
 float eng_arm(void) { return arm_now; }
 uint32_t eng_voices_on(void) { return voices_on; }
+int eng_held_notes(int *out, int max)  /* the notes the held voices play (as played: before the patch's octave) */
+{
+    uint32_t i;
+    int n = 0, j, k;
+    for (i = 0; i < ENG_VOICES && n < max; i++)
+        if (V[i].stage != ST_OFF && V[i].stage != ST_REL)
+            out[n++] = V[i].note;
+    for (j = 1; j < n; j++)
+        for (k = j; k > 0 && out[k] < out[k - 1]; k--) {
+            int t = out[k];
+            out[k] = out[k - 1];
+            out[k - 1] = t;
+        }
+    return n;
+}
+
 uint32_t eng_voices_held(void)
 {
     uint32_t i, n = 0;
@@ -832,6 +848,14 @@ void eng_loop_now(int bank) { q_push(&q_ui, EV_LOOP_NOW, bank & 1, 0); }
 void eng_loop_stop(void) { q_push(&q_ui, EV_LOOP_STOP, 0, 0); }
 void eng_clock_keep(int on) { clock_keep = (uint8_t)(on != 0); }
 int eng_loop_bar(void) { return loop_run ? (int)loop_pos : -1; }
+int eng_loop_notes(int *out, int max)    /* the notes the loop holds now, lowest first */
+{
+    int i, n = 0;
+    for (i = 0; i < 128 && n < max; i++)
+        if (loop_on[i])
+            out[n++] = i;
+    return n;
+}
 
 static void loop_note(int n, int on, int vel)
 {
