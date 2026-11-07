@@ -85,6 +85,7 @@ void eng_init(void);
 /* from the main loop (the panel); the render's MIDI uses the _isr forms. Both are queued and played at the next
  * block's start */
 void eng_note_on(int note, int vel);
+void eng_tune_on(int note, int vel);     /* a note over the chord loop: as eng_note_on, its release short */
 void eng_note_off(int note);
 void eng_sustain(int on);
 void eng_patch(int p);
@@ -99,6 +100,7 @@ void eng_fill(int held);                 /* FILL down (1): a fill to the bar's e
 void eng_beat_var(int v);                /* 0 sparse, 1 as written, 2 busy */
 void eng_bass(int on);                   /* the auto bass: the chord's root, on the kick, while the beat runs */
 void eng_bass_root(int note);            /* the note it plays (any octave: it finds its own) */
+int eng_bass_last(uint32_t *step);       /* the note it played last (-1 none) and on which sixteenth */
 int eng_filling(void);                   /* a fill is playing */
 void eng_arp_note(int note, int on);     /* a mono patch in chord mode: a note into (or out of) the arpeggio */
 
@@ -125,6 +127,7 @@ void eng_loop_start(int bank, int bars, int pos, int now);
 void eng_loop_now(int bank);             /* the bank re-voiced (another patch, another key): its bar's chord, now */
 void eng_loop_stop(void);
 int eng_loop_bar(void);                  /* the loop's bar playing, -1 while it is off */
+int eng_loop_notes(int *out, int max);   /* the notes it holds now, lowest first: how many */
 
 int eng_patch_count(void);
 const patch_t *eng_patch_info(int p);
@@ -133,6 +136,7 @@ float eng_arm(void);                     /* the arm now, -1 (bent all the way do
 float eng_jet(void);                     /* the jet's sweep now, -1 .. 1, times how far JET is up: the screen's swirl */
 uint32_t eng_voices_on(void);            /* voices sounding */
 uint32_t eng_voices_held(void);          /* of them, those not letting go (a key, HOLD or the loop holds them) */
+int eng_held_notes(int *out, int max);   /* their notes, lowest first: how many (the simulator's harmonics test) */
 int eng_voice_cap(int n);                /* voices allowed (the overload's shedding); returns the cap */
 
 void eng_begin(uint32_t n);

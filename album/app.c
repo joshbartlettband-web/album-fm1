@@ -646,11 +646,13 @@ static void midi_send3(uint32_t st, uint32_t d1, uint32_t d2)   /* out over USB 
 
 static uint8_t note_ref[128];
 
-static void note_down(int n, int v, int arp)
+static void note_down(int n, int v, int arp)   /* arp: 1 into the arpeggio, 2 a tune note over the loop */
 {
     if (note_ref[n]++ == 0u) {
-        if (arp)
+        if (arp == 1)
             eng_arp_note(n, 1);
+        else if (arp == 2)
+            eng_tune_on(n, v);
         else
             eng_note_on(n, v);
         midi_send3(0x90u, (uint32_t)n, (uint32_t)v);
@@ -660,7 +662,7 @@ static void note_down(int n, int v, int arp)
 static void note_up(int n, int arp)
 {
     if (note_ref[n] && --note_ref[n] == 0u) {
-        if (arp)
+        if (arp == 1)
             eng_arp_note(n, 0);
         else
             eng_note_off(n);
@@ -864,7 +866,7 @@ static void key_down(uint32_t k, uint32_t v, int quiet)
             eng_bass_root(n);
         ui.key_notes[k][0] = (int16_t)n;
         ui.key_n[k] = 1;
-        ui.key_arp[k] = 0;
+        ui.key_arp[k] = mode == MODE_TUNE ? 2u : 0u;   /* (over the loop: a short release, so the tune reads) */
     }
     for (i = 0; i < ui.key_n[k]; i++)
         note_down(clamp(ui.key_notes[k][i], 0, 127), (int)v, ui.key_arp[k]);
@@ -1227,6 +1229,8 @@ static void input(void)
             key_up(k);
         }
     }
+    ui.keys = keys;                      /* (now, before the knobs and buttons: a key let go in this same frame is
+                                          * not played again by keys_again, from SELECT, PRESET or ARP) */
     for (k = 0; k < NB; k++) {
         uint32_t bit = 1u << k;
         if (!(btn & bit) || (ui.btn & bit))
@@ -1378,7 +1382,6 @@ static void input(void)
             knob_set(k - EN_K1, (int32_t)set.knob[set.patch][k - EN_K1] + e * step, 1);
         }
     }
-    ui.keys = keys;
     ui.btn = btn;
     plat_glow(1);
     plat_leds((set_dirty ? 1u << B_SAVE : 0u) | (lp.state == LOOP_PLAY ? LED_PLAY_GREEN | 1u << B_PLAY : 0u)
@@ -1825,6 +1828,10 @@ int app_expect(const char *what, int *got)
         *got = lp.len;
     else if (!strcmp(what, "loop_bar"))  /* the loop's bar playing, from 0; -1 none */
         *got = eng_loop_bar();
+    else if (!strcmp(what, "bass_note")) { /* the auto bass's note now (MIDI), -1 none yet */
+        uint32_t st;
+        *got = eng_bass_last(&st);
+    }
     else if (!strcmp(what, "notes")) {   /* notes the keys hold */
         int i, n = 0;
         for (i = 0; i < 128; i++)
@@ -1833,6 +1840,30 @@ int app_expect(const char *what, int *got)
     }
     else
         return 0;
+    return 1;
+}
+
+int app_host_cmd(const char *cmd, const char *a, const char *b, const char *c, const char *d)
+{
+    int notes[ENG_VOICES], loop[16], n, nl, i;
+    (void)a, (void)b, (void)c, (void)d;
+    if (strcmp(cmd, "heldnotes"))       /* "heldnotes MS oct O int I: held N N ... ; loop N N ...", O and I the patch's */
+        return 0;
+    n = eng_held_notes(notes, (int)ENG_VOICES);
+    nl = eng_loop_notes(loop, 16);
+    printf("heldnotes %u oct %d int %d: held", (unsigned)plat_ms(), (int)eng_patch_info(set.patch)->octave,
+           (int)eng_patch_info(set.patch)->interval);
+    for (i = 0; i < n; i++)
+        printf(" %d", notes[i]);
+    printf(" ; loop");
+    for (i = 0; i < nl; i++)
+        printf(" %d", loop[i]);
+    {
+        uint32_t st;
+        int bn = eng_bass_last(&st);
+        printf(" ; bass %d at %u ; step %u", bn, (unsigned)st, (unsigned)eng_step());
+    }
+    printf("\n");
     return 1;
 }
 #else

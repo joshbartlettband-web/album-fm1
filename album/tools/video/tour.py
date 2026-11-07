@@ -6,6 +6,8 @@
   python3 album/tools/video/tour.py OUT_DIR       writes OUT_DIR/tour.txt and OUT_DIR/tour.json
   album/build/host/album_host OUT_DIR/tour.txt OUT_DIR
   python3 album/tools/video/compose.py OUT_DIR album/site/img/album-01.mp4
+  python3 album/tools/video/tour.py OUT_DIR --probe   the same, and the notes held every 100 ms, for
+                                                     tools/harmonics.py (run the simulator with its output saved)
 
 The script keeps the simulator's clock itself: every frame is a "shot" on the 30 a second grid, and each command
 costs what the simulator spends on it (a key or a button 2 ms, a detent 1 ms), so the pictures and the sound
@@ -30,6 +32,8 @@ class Tour:
         self.lines, self.t, self.rec = [], 0, False
         self.frames, self.caps, self.held = [], [], 0
         self.seg, self.seg_t0, self.seg_n = 0, 0, 0
+        self.key_events, self.seg_starts = [], []   # (ms, key, 1 down / 0 up); each sound file's start, ms
+        self.probe, self.next_probe = False, 0     # heldnotes every 100 ms while recording (for harmonics.py)
 
     def _next_frame(self):
         return self.seg_t0 + round(self.seg_n * 1000 / FPS)
@@ -41,6 +45,9 @@ class Tour:
             if f > self.t:
                 self.lines.append(f"wait {f - self.t}")
                 self.t = f
+            if self.probe and self.t >= self.next_probe:
+                self.lines.append("heldnotes")
+                self.next_probe = self.t + 100
             self.lines.append(f"shot f{len(self.frames):05d}.png")
             self.frames.append(self.held)
             self.seg_n += 1
@@ -55,6 +62,7 @@ class Tour:
     def start(self):                     # a stretch of the video: its own sound file
         self.cmd(f"wav seg{self.seg}.wav", 0)
         self.rec, self.seg_t0, self.seg_n = True, self.t, 0
+        self.seg_starts.append(self.t)
 
     def stop(self):                      # (on a frame's edge, so the sound is as long as the pictures)
         self.wait(max(0, self._next_frame() - self.t - 1))
@@ -70,10 +78,12 @@ class Tour:
 
     def down(self, k, vel=96):
         self.held |= 1 << key_index(k)
+        self.key_events.append((self.t, key_index(k), 1))
         self.cmd(f"key {k} down {vel}", 2)
 
     def up(self, k):
         self.held &= ~(1 << key_index(k))
+        self.key_events.append((self.t, key_index(k), 0))
         self.cmd(f"key {k} up", 2)
 
     def note(self, k, ms, vel=96):
@@ -95,8 +105,9 @@ class Tour:
         self.cmd("midi " + " ".join(b), 2)
 
 
-def tour():
+def tour(probe=False):
     T = Tour()
+    T.probe = probe
     # the boot photo melting into the first patch, ALBUM 01 fading
     T.start()
     T.cap("ALBUM 01", "Firmware for the M-VAVE FM-1: twelve sounds, each made from a photo")
@@ -247,11 +258,12 @@ def tour():
     T.wait(400)
     T.up("b6")
     T.tap("ARP")
-    T.cap("ARP  NOTES", "One note a key")
-    T.wait(200)
+    T.spin("PRESET", 6, 40)              # (WINDOW, for single notes: RED DOOR blooms each one back over the next)
+    T.cap("ARP  NOTES", "One note a key. Here on WINDOW")
+    T.wait(1200)                         # (ACCORDION's last chord out of the room first)
     for k in ("w4", "w6", "w8", "w11"):
-        T.note(k, 360, 96)
-    T.wait(700)
+        T.note(k, 560, 96)
+    T.wait(900)
     T.tap("ARP")
     T.cap("SELECT  THE KEY", "A semitone a click. Here, up a tone to D")
     T.wait(200)
@@ -269,6 +281,9 @@ def tour():
     T.note("w4", 1300, 96)
     T.tap("OCT+")
     T.wait(600)
+
+    T.spin("PRESET", -6, 40)             # (back to RED DOOR for the beat and the loop)
+    T.wait(500)
 
     # the beat, then the chord loop over it, all on the bar lines (RED DOOR: 86 BPM)
     bar = 240000 / 86
@@ -313,8 +328,8 @@ def tour():
     at(8, 60)
     T.tap("REC", 40)
     T.cap("REC  A CHORD LOOP", "REC again: four bars, looping. Now play over it")
-    tune = [(0, "w13", 2), (0.5, "w12", 1), (0.75, "w11", 1), (1, "w9", 3), (1.75, "w8", 1),
-            (2, "w9", 1), (2.25, "w11", 1), (2.5, "w12", 2), (3, "w10", 2), (3.5, "w8", 2)]
+    tune = [(0, "w13", 2), (0.5, "w12", 1), (0.75, "w11", 1), (1, "w9", 3), (1.75, "w8", 1),   # (D and C over B flat)
+            (2, "w9", 1), (2.25, "w11", 1), (2.5, "w12", 2), (3, "w12", 2), (3.5, "w11", 2)]
     for b, k, q in tune:                 # (q: quarter notes long)
         at(8 + b, 40)
         T.down(k, 92)
@@ -332,17 +347,18 @@ def tour():
     return T
 
 
-def main(out):
+def main(out, probe=False):
     out = Path(out)
     out.mkdir(parents=True, exist_ok=True)
-    T = tour()
+    T = tour(probe)
     (out / "tour.txt").write_text("# the front page's video (tools/video/tour.py): do not edit\n" + "\n".join(T.lines) + "\n")
     (out / "tour.json").write_text(json.dumps({"fps": FPS, "frames": len(T.frames), "segments": T.seg,
+                                               "seg_starts": T.seg_starts, "key_events": T.key_events,
                                                "keys": T.frames, "captions": T.caps}))
     print(f"tour: {len(T.frames)} frames, {len(T.frames) / FPS:.1f} s, {T.seg} segments")
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 2:
+    if len(sys.argv) not in (2, 3) or (len(sys.argv) == 3 and sys.argv[2] != "--probe"):
         raise SystemExit(__doc__)
-    main(sys.argv[1])
+    main(sys.argv[1], len(sys.argv) == 3)

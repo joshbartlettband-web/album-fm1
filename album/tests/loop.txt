@@ -148,3 +148,34 @@ expect loop_bar 0
 tap PLAY
 wait 30
 expect loop 4
+# the auto bass with the loop: each chord's root on its bar's first kick (it was the chord before, until the second)
+tap REC
+wait 40
+key w4 down 100
+wait 2600
+key w4 up
+wait 189
+key w7 down 100
+wait 2600
+key w7 up
+wait 189
+tap REC
+wait 200
+expect loop 3
+tap GLO
+wait 40
+# the beat starts the loop again from its first bar, C: its first kick already has the bass on C, a few ms in
+press SEQ
+wait 60
+release SEQ
+wait 5
+expect bass_note 36
+wait 2791
+expect bass_note 41
+wait 2791
+expect bass_note 36
+tap SEQ
+tap GLO
+tap PLAY
+wait 30
+expect loop 4

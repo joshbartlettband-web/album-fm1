@@ -62,7 +62,7 @@ static inline float coef_t(float seconds, float rate)   /* one-pole coefficient:
 
 /* ------------------------------------------------------------- the queue --- */
 /* two single-producer queues (the main loop's, the render's MIDI), one consumer (eng_begin) */
-enum { EV_ON, EV_OFF, EV_SUS, EV_PATCH, EV_PANIC, EV_ARP, EV_LOOP_START, EV_LOOP_STOP, EV_LOOP_NOW };
+enum { EV_ON, EV_OFF, EV_SUS, EV_PATCH, EV_PANIC, EV_ARP, EV_LOOP_START, EV_LOOP_STOP, EV_LOOP_NOW, EV_TUNE };
 typedef struct { uint8_t type, a, b, pad; } ev_t;
 #define QN 64u
 typedef struct { ev_t ev[QN]; volatile uint32_t w, r; } queue_t;
@@ -81,6 +81,7 @@ static void q_push(queue_t *q, uint8_t type, int a, int b)
 }
 
 void eng_note_on(int note, int vel) { q_push(&q_ui, EV_ON, note, vel); }
+void eng_tune_on(int note, int vel) { q_push(&q_ui, EV_TUNE, note, vel); }
 void eng_note_off(int note) { q_push(&q_ui, EV_OFF, note, 0); }
 void eng_sustain(int on) { q_push(&q_ui, EV_SUS, on != 0, 0); }
 void eng_patch(int p) { q_push(&q_ui, EV_PATCH, p, 0); }
@@ -105,6 +106,7 @@ enum { ST_OFF, ST_ATT, ST_DEC, ST_REL };
 typedef struct {
     int16_t note;                        /* -1: free */
     uint8_t gate, held, stage, quick;    /* quick: a fast release (a patch change, a steal) */
+    uint8_t tune;                        /* a tune note over the chord loop: a short release, so the tune reads */
     uint32_t age;
     float vel, pitch, target;            /* pitch and its slide target, in semitones */
     float ph[3], drift[3], dgoal[3];
@@ -118,6 +120,7 @@ typedef struct {
 } voice_t;
 
 static voice_t V[ENG_VOICES];
+static uint8_t tune_next;                /* (drain: the note starting now is a tune note) */
 static uint32_t age_now, voice_cap = ENG_VOICES;
 static uint8_t sustain_on;
 static int8_t mono_stack[8];
@@ -130,12 +133,16 @@ static struct {
     float arm[ENG_BLOCK_MAX / ENG_SUB + 1u];   /* cents, at each sub-block's start (and the block's end) */
     float knob[NKNOB];
     float cut, drift, breath;            /* cutoff (Hz) from Tone; drift (cents) from Glide; the breath now (octaves) */
-    float att_inc, dec_c, rel_c, quick_c, fenv_c, fm_c, slide_c;
+    float att_inc, dec_c, rel_c, quick_c, tune_c, fenv_c, fm_c, slide_c;
     float hp_c, vgain, crackle_p;
     float window, wet, ap_g, wet_lp;     /* the reverb: window (s), share, diffusion, its low-pass coefficient */
 } B;
 
 static float dry_a[2u * ENG_BLOCK_MAX] PLAT_POOL, dry_b[2u * ENG_BLOCK_MAX] PLAT_POOL;
+/* the tune notes over the chord loop, each core's apart: past the fuzz, mostly dry, a little into the reverse reverb, so
+ * the tune sits in front of the loop's wash instead of blooming back over the next note */
+static float tune_a[2u * ENG_BLOCK_MAX] PLAT_POOL, tune_b[2u * ENG_BLOCK_MAX] PLAT_POOL;
+#define TUNE_SEND 0.3f                   /* how much of the tune goes into the reverse reverb */
 static float dry_last[2u * ENG_BLOCK_MAX] PLAT_POOL;   /* the last block's mix: the reverb's input (core 1) */
 static float wet_out[2u * ENG_BLOCK_MAX] PLAT_POOL;    /* the reverb's output for this block (core 1) */
 static uint32_t n_last;
@@ -149,6 +156,22 @@ const patch_t *eng_patch_info(int p) { return &PATCHES[(p % NPATCH + NPATCH) % N
 float eng_level(void) { return level_now; }
 float eng_arm(void) { return arm_now; }
 uint32_t eng_voices_on(void) { return voices_on; }
+int eng_held_notes(int *out, int max)  /* the notes the held voices play (as played: before the patch's octave) */
+{
+    uint32_t i;
+    int n = 0, j, k;
+    for (i = 0; i < ENG_VOICES && n < max; i++)
+        if (V[i].stage != ST_OFF && V[i].stage != ST_REL)
+            out[n++] = V[i].note;
+    for (j = 1; j < n; j++)
+        for (k = j; k > 0 && out[k] < out[k - 1]; k--) {
+            int t = out[k];
+            out[k] = out[k - 1];
+            out[k - 1] = t;
+        }
+    return n;
+}
+
 uint32_t eng_voices_held(void)
 {
     uint32_t i, n = 0;
@@ -171,6 +194,7 @@ static void voice_start(voice_t *v, int note, float vel, int retrig)
     v->gate = 1;
     v->held = 0;
     v->quick = 0;
+    v->tune = tune_next;
     v->stage = ST_ATT;
     v->age = ++age_now;
     if (retrig || v->env < 0.0001f) {     /* a new voice: the oscillators start anywhere, as strings do */
@@ -592,7 +616,8 @@ static inline __attribute__((always_inline)) void voice_sub(voice_t *v, const pa
     float env = v->env, sub_ph = v->sub_ph, crk = v->crk;
     float s1l = v->s1l, s2l = v->s2l, s1r = v->s1r, s2r = v->s2r, hpl = v->hpl, hpr = v->hpr;
     float ph[3], fph[3];
-    const float att_inc = B.att_inc, dec_c = B.dec_c, rel_c = quick ? B.quick_c : B.rel_c, sus = p->sus;
+    const float att_inc = B.att_inc, dec_c = B.dec_c, rel_c = quick ? B.quick_c : v->tune ? B.tune_c : B.rel_c;
+    const float sus = p->sus;
     const float noise = p->noise, sub = p->sub, hp = p->hp, hp_c = B.hp_c, crackle = p->crackle;
     const float pw = p->pw, fm_index = p->fm_index, fm_env = v->fm_env, fm_ratio = p->fm_ratio;
     for (o2 = 0; o2 < OSCS; o2++) {
@@ -779,14 +804,14 @@ static void render_voice(voice_t *v, float *o, uint32_t n)
     }
 }
 
-static void render_half(uint32_t lo, float *o)
+static void render_half(uint32_t lo, float *o, float *t)   /* t: the tune notes' own */
 {
     uint32_t i;
     for (i = 0; i < 2u * B.n; i++)
-        o[i] = 0.0f;
+        o[i] = t[i] = 0.0f;
     for (i = lo; i < lo + ENG_HALF; i++)
         if (V[i].stage != ST_OFF)
-            render_voice(&V[i], o, B.n);
+            render_voice(&V[i], V[i].tune ? t : o, B.n);
 }
 
 /* -------------------------------------------------------- the chord loop --- */
@@ -799,6 +824,7 @@ static void render_half(uint32_t lo, float *o)
 typedef struct { int8_t note[LOOP_NOTES]; uint8_t n, vel; } loop_chord_t;
 static loop_chord_t loop_bank[2][ENG_LOOP_BARS];
 static uint8_t loop_use, loop_len, loop_run, loop_pos, loop_due;
+static volatile int bass_root;           /* (the auto bass's note, below: the loop sets it as its chord comes) */
 static volatile uint8_t loop_start_pos, clock_keep;
 
 void eng_loop_chord(int bank, int bar, const int16_t *notes, int n, int vel)
@@ -823,6 +849,14 @@ void eng_loop_now(int bank) { q_push(&q_ui, EV_LOOP_NOW, bank & 1, 0); }
 void eng_loop_stop(void) { q_push(&q_ui, EV_LOOP_STOP, 0, 0); }
 void eng_clock_keep(int on) { clock_keep = (uint8_t)(on != 0); }
 int eng_loop_bar(void) { return loop_run ? (int)loop_pos : -1; }
+int eng_loop_notes(int *out, int max)    /* the notes the loop holds now, lowest first */
+{
+    int i, n = 0;
+    for (i = 0; i < 128 && n < max; i++)
+        if (loop_on[i])
+            out[n++] = i;
+    return n;
+}
 
 static void loop_note(int n, int on, int vel)
 {
@@ -863,6 +897,8 @@ static void loop_play(void)              /* eng_begin: the due bar's chord */
     if (!loop_run || !loop_len)
         return;
     c = &loop_bank[loop_use][loop_pos];
+    if (c->n)
+        bass_root = c->note[0];          /* (the bass: this chord's lowest note) */
     for (i = 0; i < 128u; i++) {         /* let go of what the new chord does not have */
         if (!loop_on[i])
             continue;
@@ -1002,6 +1038,26 @@ static struct {
     float ph, f, target, env, lp1, lp2, v;
 } BS;
 static float dc_bass, bass_glide;
+static int bass_last = -1;               /* the bass's last note and the sixteenth it came on (the harmonics test) */
+static uint32_t bass_last_step, bass_age;  /* bass_age: samples since it came */
+static int bass_from;                    /* the root it came on */
+#define BASS_LATE (0.125f * ENG_FS)      /* a chord this late after the kick still gets the bass: it slides there */
+
+static void bass_late(uint32_t n)        /* eng_begin: a new root just after the kick (a chord played a moment late) */
+{
+    int r = bass_root;
+    bass_age += n;
+    if (bass_on && BS.env > 0.02f && (float)bass_age < BASS_LATE && r >= 0 && r != bass_from) {
+        while (r > 43)
+            r -= 12;
+        while (r < 31)
+            r += 12;
+        BS.target = 440.0f * fm_exp2f(((float)r - 69.0f) * (1.0f / 12.0f));
+        bass_from = bass_root;
+        bass_last = r;
+    }
+}
+int eng_bass_last(uint32_t *step) { *step = bass_last_step; return bass_last; }
 
 static void fire(uint32_t step)          /* a sixteenth: the arpeggio's next note, the kit's hits, the bass */
 {
@@ -1010,9 +1066,12 @@ static void fire(uint32_t step)          /* a sixteenth: the arpeggio's next not
     uint32_t s = step & 15u, bar = step >> 4;
     int sparse = beat_var == 0, busy = beat_var == 2;
     float v;
-    if (loop_run && s == 0u) {           /* a bar line: the loop's next chord */
+    if (loop_run && s == 0u) {           /* a bar line: the loop's next chord, and the bass with it on this downbeat's
+                                          * kick (the chord itself starts with the next block) */
         loop_pos = (uint8_t)((loop_pos + 1u) % loop_len);
         loop_due = 1;
+        if (loop_bank[loop_use][loop_pos].n)
+            bass_root = loop_bank[loop_use][loop_pos].note[0];
     }
     if (p->mono && A.n && p->arp_div && s % p->arp_div == 0u)
         A.due = 1;
@@ -1039,6 +1098,10 @@ static void fire(uint32_t step)          /* a sixteenth: the arpeggio's next not
             while (n < 31)
                 n += 12;
             BS.target = 440.0f * fm_exp2f(((float)n - 69.0f) * (1.0f / 12.0f));
+            bass_last = n;
+            bass_last_step = step;
+            bass_age = 0;
+            bass_from = bass_root;
             if (BS.env < 0.02f)
                 BS.f = BS.target;
             BS.env = 1.0f;
@@ -1216,6 +1279,14 @@ static void drain(queue_t *q)
             key_on[e.a & 127u] = 1;
             note_on(e.a, e.b ? e.b : 1);
             break;
+        case EV_TUNE:                    /* a note over the chord loop (unless the loop holds it too: then the chord's) */
+            key_on[e.a & 127u] = 1;
+            tune_next = !loop_on[e.a & 127u];
+            note_on(e.a, e.b ? e.b : 1);
+            if (B.p->mono)
+                V[0].tune = tune_next;
+            tune_next = 0;
+            break;
         case EV_OFF:
             key_on[e.a & 127u] = 0;
             if (!loop_on[e.a & 127u] || B.p->mono)   /* (the loop still holds it: it lets go with the loop) */
@@ -1299,6 +1370,7 @@ void eng_begin(uint32_t n)
     }
     loop_play();
     arp_play();
+    bass_late(n);
     pulse *= 0.82f;
     B.n = n;
     B.nsub = (n + ENG_SUB - 1u) / ENG_SUB;
@@ -1308,6 +1380,7 @@ void eng_begin(uint32_t n)
     B.dec_c = coef_t(p->dec * 0.35f, ENG_FS);
     B.rel_c = coef_t(p->rel * 0.3f, ENG_FS);
     B.quick_c = coef_t(0.012f, ENG_FS);
+    B.tune_c = coef_t(fm_minf(p->rel, 0.5f) * 0.3f, ENG_FS);   /* a tune note: gone in about half a second */
     B.fenv_c = coef_t(p->fenv_decay, ENG_FS / (float)ENG_SUB);
     B.fm_c = coef_t(p->fm_decay > 0.0f ? p->fm_decay : 1.0f, ENG_FS / (float)ENG_SUB);
     B.slide_c = coef_t(p->slide > 0.0f ? p->slide * 0.4f : 0.0f, ENG_FS / (float)ENG_SUB);
@@ -1341,11 +1414,11 @@ void eng_begin(uint32_t n)
     voices_on = j;
 }
 
-void eng_voices_a(void) { render_half(0, dry_a); }
+void eng_voices_a(void) { render_half(0, dry_a, tune_a); }
 
 void eng_voices_b(void)
 {
-    render_half(ENG_HALF, dry_b);
+    render_half(ENG_HALF, dry_b, tune_b);
     reverb(dry_last, wet_out, n_last ? n_last : B.n);
 }
 
@@ -1353,7 +1426,7 @@ void eng_drop_b(void)
 {
     uint32_t i;
     for (i = 0; i < 2u * B.n; i++)
-        dry_b[i] = wet_out[i] = 0.0f;
+        dry_b[i] = tune_b[i] = wet_out[i] = 0.0f;
     for (i = ENG_HALF; i < ENG_VOICES; i++) {   /* their state may be half advanced, or misread: start again */
         V[i].stage = ST_OFF;
         V[i].env = 0.0f;
@@ -1482,6 +1555,7 @@ void eng_end(int32_t *lr, uint32_t n, float gain)
     wow_flut += ((rndf(&wow_rng) - 0.5f) - wow_flut) * 0.05f;
     for (i = 0; i < n; i++) {
         float l = dry_a[2u * i] + dry_b[2u * i], r = dry_a[2u * i + 1u] + dry_b[2u * i + 1u];
+        float ul = tune_a[2u * i] + tune_b[2u * i], ur = tune_a[2u * i + 1u] + tune_b[2u * i + 1u];   /* the tune */
         float ol, or_, d, fr, w0l, w0r, w1l, w1r;
         uint32_t di, a0, a1;
         float gl = 1.0f, gr = 1.0f;
@@ -1533,11 +1607,13 @@ void eng_end(int32_t *lr, uint32_t n, float gain)
         if (!p->trem_pan) {              /* the tremolo before the reverb, which hears it too */
             l *= gl;
             r *= gr;
+            ul *= gl;
+            ur *= gr;
         }
-        dry_last[2u * i] = l;
-        dry_last[2u * i + 1u] = r;
-        ol = l * dry + wet_out[2u * i] * wet * wet_gain;
-        or_ = r * dry + wet_out[2u * i + 1u] * wet * wet_gain;
+        dry_last[2u * i] = l + ul * TUNE_SEND;
+        dry_last[2u * i + 1u] = r + ur * TUNE_SEND;
+        ol = l * dry + wet_out[2u * i] * wet * wet_gain + ul;
+        or_ = r * dry + wet_out[2u * i + 1u] * wet * wet_gain + ur;
         if (p->trem_pan) {               /* the pan after it: the whole sound, the room too, carried round */
             ol *= gl;
             or_ *= gr;
