@@ -646,11 +646,13 @@ static void midi_send3(uint32_t st, uint32_t d1, uint32_t d2)   /* out over USB 
 
 static uint8_t note_ref[128];
 
-static void note_down(int n, int v, int arp)
+static void note_down(int n, int v, int arp)   /* arp: 1 into the arpeggio, 2 a tune note over the loop */
 {
     if (note_ref[n]++ == 0u) {
-        if (arp)
+        if (arp == 1)
             eng_arp_note(n, 1);
+        else if (arp == 2)
+            eng_tune_on(n, v);
         else
             eng_note_on(n, v);
         midi_send3(0x90u, (uint32_t)n, (uint32_t)v);
@@ -660,7 +662,7 @@ static void note_down(int n, int v, int arp)
 static void note_up(int n, int arp)
 {
     if (note_ref[n] && --note_ref[n] == 0u) {
-        if (arp)
+        if (arp == 1)
             eng_arp_note(n, 0);
         else
             eng_note_off(n);
@@ -864,7 +866,7 @@ static void key_down(uint32_t k, uint32_t v, int quiet)
             eng_bass_root(n);
         ui.key_notes[k][0] = (int16_t)n;
         ui.key_n[k] = 1;
-        ui.key_arp[k] = 0;
+        ui.key_arp[k] = mode == MODE_TUNE ? 2u : 0u;   /* (over the loop: a short release, so the tune reads) */
     }
     for (i = 0; i < ui.key_n[k]; i++)
         note_down(clamp(ui.key_notes[k][i], 0, 127), (int)v, ui.key_arp[k]);

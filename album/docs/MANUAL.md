@@ -170,7 +170,9 @@ the one before. While it records, REC stays lit and the bottom of the screen cou
 
 Then it plays. PLAY is lit green, the bottom of the screen reads LOOP 2/4, and each chord is spelled out on the photo
 as it comes round. The keys play single notes over it: the white keys kept in the key, as in ACCORDION, the black keys
-as they are. A note you play that the chord has too rings on with the chord. The bass (GLO) follows the loop.
+as they are. The tune sits in front of the loop: its notes skip the fuzz, go only a little into the reverse
+reverb, and let go in about half a second, so a run of notes stays clear over the wash. A note you play that the
+chord has too rings on with the chord. The bass (GLO) follows the loop.
 
 PLAY stops the loop, and PLAY again starts it from its first bar. REC while it plays starts a new one, and the old
 loop keeps going until your first new chord; REC again before that leaves the old loop as it was. The loop keeps the

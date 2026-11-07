@@ -85,6 +85,7 @@ void eng_init(void);
 /* from the main loop (the panel); the render's MIDI uses the _isr forms. Both are queued and played at the next
  * block's start */
 void eng_note_on(int note, int vel);
+void eng_tune_on(int note, int vel);     /* a note over the chord loop: as eng_note_on, its release short */
 void eng_note_off(int note);
 void eng_sustain(int on);
 void eng_patch(int p);
