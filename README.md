@@ -10,8 +10,8 @@ time they ring, heard through a reverse reverb.
   the shelf (`album/shelf/`)
 - Five knobs on every patch: Glide, Swell, Tone, Blur, and Fuzz on ALGORITHM (a fuzz pedal on the whole chord, FX
   in and out, with its own low, mid and high), each acting on the sound and the photo
-- Two effects on the whole sound, under EDIT: JET, a slow jet-plane flanger (K1), and ECHO, a dark tape echo in time
-  with the tempo (K2)
+- Four effects on the whole sound, under EDIT: JET, a slow jet-plane flanger (K1); ECHO, a dark tape echo in time
+  with the tempo (K2); DRIVE, a valve amp turned up (K3); CHORUS (K4)
 - A chord loop to jam over (REC): play chords, one a bar, for 1 to 8 bars, and the keys play single notes in the key
   over them; PLAY stops and starts it
 - Chord mode (ARP): every key plays a chord, the black keys too, in any key (SELECT); chords drawn from My Bloody

@@ -92,7 +92,7 @@ void eng_note_off_isr(int note) { q_push(&q_isr, EV_OFF, note, 0); }
 void eng_sustain_isr(int on) { q_push(&q_isr, EV_SUS, on != 0, 0); }
 void eng_patch_isr(int p) { q_push(&q_isr, EV_PATCH, p, 0); }
 
-static volatile float knob_in[NKNOB] = {0.5f, 0.5f, 0.5f, 0.5f, 0.0f, 0.5f, 0.5f, 0.5f, 0.0f, 0.0f};
+static volatile float knob_in[NKNOB] = {0.5f, 0.5f, 0.5f, 0.5f, 0.0f, 0.5f, 0.5f, 0.5f, 0.0f, 0.0f, 0.0f, 0.0f};
 static volatile uint8_t fuzz_on = 1;
 void eng_fuzz_on(int on) { fuzz_on = (uint8_t)(on != 0); }
 void eng_knob(int k, float v)
@@ -1474,6 +1474,21 @@ static float echo_now, echo_t, echo_ph, echo_lp[2], echo_hp[2];
 /* The jet (JET): a flanger over everything, the beat too, sweeping slowly down and up as a jet plane passes over: the
  * sound read back 0.3 to 5 ms late and mixed in, some of it fed back through a low-pass (no whistle). The right side
  * sweeps a quarter turn behind the left */
+/* The drive (DRIVE): the voices into a valve amp turned up, after the fuzz pedal, before the tremolo and the reverb
+ * hear them, as a guitar's chord goes. A soft clip that leans one way (the even harmonics a valve adds), then a
+ * cabinet: two low-passes from 6.5 kHz down to 2.8 kHz as DRIVE rises, so the more it drives the warmer it gets
+ * and it never fizzes. The tune over a loop goes round it */
+static float od_now, od_lp1[2], od_lp2[2];
+
+/* The chorus (CHORUS): the voices, the room and the echo read back 4.5 to 9.5 ms late, the delay sweeping about
+ * every two seconds, the right side opposite the left, and mixed in: two players a hair apart, as a chorus pedal
+ * makes one. Not the beat */
+#define CH_N 1024u
+static float ch_buf[2u * CH_N] PLAT_POOL;
+static uint32_t ch_w;
+static float ch_now, ch_ph;
+float eng_chorus(void) { return ch_now * sine01(ch_ph); }
+
 #define JET_N 512u
 static float jet_buf[2u * JET_N] PLAT_POOL;
 static uint32_t jet_w;
@@ -1518,6 +1533,16 @@ void eng_end(int32_t *lr, uint32_t n, float gain)
     echo_now += (B.knob[K_ECHO] - echo_now) * 0.25f;   /* (both ease, as the fuzz does) */
     if (echo_now < 1e-4f)
         echo_now = 0.0f;
+    od_now += (B.knob[K_DRIVE] - od_now) * 0.25f;
+    if (od_now < 1e-4f)
+        od_now = 0.0f;
+    ch_now += (B.knob[K_CHORUS] - ch_now) * 0.25f;
+    if (ch_now < 1e-4f)
+        ch_now = 0.0f;
+    const float od = od_now, od_gain = 1.0f + 11.0f * od * fm_sqrtf(od), od_mix = fm_minf(1.0f, 2.5f * od);
+    const float od_lpc = 1.0f - fm_expf(-FM_TWO_PI * 6500.0f * fm_exp2f(-1.2f * od) / ENG_FS);
+    const float od_out = 1.0f / (1.0f + 3.5f * od);   /* (the level as it was: the clip raises the average) */
+    const float cv = ch_now, ch_mix = 0.6f * cv;
     jet_now += (B.knob[K_JET] - jet_now) * 0.25f;
     if (jet_now < 1e-4f)
         jet_now = 0.0f;
@@ -1586,6 +1611,20 @@ void eng_end(int32_t *lr, uint32_t n, float gain)
             l = l * (1.0f - fz_mix) + (yl * fz_out + fz_lo_l * 0.5f) * fz_mix;
             r = r * (1.0f - fz_mix) + (yr * fz_out + fz_lo_r * 0.5f) * fz_mix;
         }
+        if (od > 0.0f) {                 /* the drive */
+            float x[2] = {l, r};
+            uint32_t s;
+            for (s = 0; s < 2u; s++) {
+                float y = soft(fm_clampf(x[s] * od_gain + 0.12f, -3.0f, 3.0f)) - soft(0.12f);
+                od_lp1[s] += od_lpc * (y - od_lp1[s]);
+                od_lp2[s] += od_lpc * (od_lp1[s] - od_lp2[s]);
+                if (fm_fabsf(od_lp2[s]) < 1e-12f)   /* (no denormals in the silence after) */
+                    od_lp1[s] = od_lp2[s] = 0.0f;
+                x[s] = x[s] * (1.0f - od_mix) + od_lp2[s] * od_out * od_mix;
+            }
+            l = x[0];
+            r = x[1];
+        }
         if (td > 0.0f) {                 /* two amps, two speeds (or one sound carried side to side) */
             float ml, mr;
             if (p->trem_sync && C.run && !ext) {   /* on the beat: where in its bar the clock is, open on each step */
@@ -1641,6 +1680,25 @@ void eng_end(int32_t *lr, uint32_t n, float gain)
             q = (int32_t)((in + w) * 16384.0f);
             echo_line[echo_w] = (int16_t)(q > 32767 ? 32767 : q < -32768 ? -32768 : q);
             echo_w = (echo_w + 1u) & (ECHO_N - 1u);
+        }
+        {                                /* the chorus */
+            uint32_t s;
+            ch_buf[2u * ch_w] = ol;
+            ch_buf[2u * ch_w + 1u] = or_;
+            if (cv > 0.0f) {
+                float x[2] = {ol, or_};
+                ch_ph = wrap01(ch_ph + 0.48f / ENG_FS);
+                for (s = 0; s < 2u; s++) {
+                    float back = (0.007f + 0.0025f * sine01(wrap01(ch_ph + 0.5f * (float)s))) * ENG_FS;
+                    uint32_t bi = (uint32_t)back, a0 = (ch_w - bi) & (CH_N - 1u), a1 = (a0 - 1u) & (CH_N - 1u);
+                    float fr = back - (float)bi;
+                    float d = ch_buf[2u * a0 + s] + (ch_buf[2u * a1 + s] - ch_buf[2u * a0 + s]) * fr;
+                    x[s] = x[s] * (1.0f - 0.3f * cv) + d * ch_mix;
+                }
+                ol = x[0];
+                or_ = x[1];
+            }
+            ch_w = (ch_w + 1u) & (CH_N - 1u);
         }
         if (C.run && !ext)
             clock_sample(sps, swing);

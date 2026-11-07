@@ -27,9 +27,9 @@ static int c1_report(char *a, char *b) { (void)a; (void)b; return 0; }
 #endif
 
 static const char *const KNOB_NAME[NKNOB] = {"GLIDE", "SWELL", "TONE", "BLUR", "FUZZ", "FUZZ LOW", "FUZZ MID", "FUZZ HIGH",
-                                             "JET", "ECHO"};
+                                             "JET", "ECHO", "DRIVE", "CHORUS"};
 /* each knob's MIDI CC, in and out (21 is the beat's level) */
-static const uint8_t KNOB_CC[NKNOB] = {16, 17, 18, 19, 20, 22, 23, 24, 25, 26};
+static const uint8_t KNOB_CC[NKNOB] = {16, 17, 18, 19, 20, 22, 23, 24, 25, 26, 27, 28};
 static float knob_start(const patch_t *p, uint32_t k)   /* (the fuzz's EQ starts flat) */
 {
     return k >= K_FZLO && k <= K_FZHI ? 0.5f : p->knob[k];
@@ -40,7 +40,7 @@ static inline float sine_wave(float x) { return fm_sinf(x * FM_TWO_PI); }
 /* --------------------------------------------------------------- settings --- */
 enum { MODE_NOTES, MODE_CHORDS, MODE_ACCORDION };   /* set.chords: how the keys play (ARP) */
 #define MODE_TUNE 3                      /* (not a setting: the keys over a playing loop, single notes in the key) */
-#define SET_MAGIC 0x414C4239u            /* "ALB9": JET and ECHO (earlier layouts start fresh) */
+#define SET_MAGIC 0x414C4241u            /* "ALBA": DRIVE and CHORUS (earlier layouts start fresh) */
 typedef struct {
     uint32_t magic;
     uint8_t patch;
@@ -148,7 +148,7 @@ static void midi_in(void)
                 eng_sustain_isr(d2 >= 64u);
                 midi_hold_req = (uint8_t)(d2 >= 64u ? 2u : 1u);   /* the screen shows it (2 on, 1 off) */
             }
-            else if (d1 >= 16u && d1 <= 26u && d1 != CC_BEAT) {
+            else if (d1 >= 16u && d1 <= 28u && d1 != CC_BEAT) {
                 uint32_t k = 0;
                 while (k < NKNOB && KNOB_CC[k] != d1)
                     k++;
@@ -328,7 +328,7 @@ static void photo_palette(void)
     float tone = knob_val(K_TONE), swell = knob_val(K_SWELL);
     float bright = 0.7f + 0.55f * tone + 0.14f * eng_pulse(), lift = 0.55f * swell, fl = fm_minf(ph.level * 1.8f, 1.0f);
     float burn = set.fuzz_off ? 0.0f : knob_val(K_FUZZ);   /* the fuzz burns the colours: more contrast, more colour */
-    float jet = eng_jet();
+    float jet = eng_jet(), warm = knob_val(K_DRIVE);
     uint32_t i;
     for (i = 0; i < 16u; i++) {
         float r = src[3u * i], g = src[3u * i + 1u], b = src[3u * i + 2u];
@@ -349,6 +349,11 @@ static void photo_palette(void)
             r *= f;
             g *= f;
             b *= f;
+        }
+        if (warm > 0.0f) {               /* the drive: the light warmer, as a valve's glow */
+            r += (255.0f - r) * 0.18f * warm;
+            g *= 1.0f - 0.05f * warm;
+            b *= 1.0f - 0.35f * warm;
         }
         if (jet != 0.0f) {               /* the jet swirls the colours round the wheel as it sweeps */
             float c = fm_cosf(jet * 1.6f), s = fm_sinf(jet * 1.6f) * 0.57735f, o = (1.0f - c) * (1.0f / 3.0f);
@@ -381,6 +386,8 @@ static void photo_strip(uint32_t y0, uint32_t photo, const uint16_t *pal, int fx
     float glide = fx ? knob_val(K_GLIDE) : 0.0f, blur = fx ? knob_val(K_BLUR) : 0.0f, arm = fx ? eng_arm() : 0.0f;
     int32_t rad = (int32_t)(blur * blur * blur * 6.0f);    /* Blur: a sideways smear, up to 6 pixels each way */
     float echo = fx ? knob_val(K_ECHO) : 0.0f;
+    int32_t csplit = fx ? (int32_t)(3.5f * (fm_fabsf(eng_chorus()) + (knob_val(K_CHORUS) > 0.0f ? 0.3f : 0.0f))) : 0;
+                                                           /* Chorus: red and blue drift apart and back, to 3 pixels */
     uint32_t etrail = (uint32_t)(echo * 120.0f);           /* Echo: copies up to 47% strong, 8 to 20 pixels apart */
     int32_t egap = 8 + (int32_t)(echo * 12.0f);
     float amp = glide * glide * 7.0f;                      /* Glide: the rows waver, as the pitch does */
@@ -422,6 +429,15 @@ static void photo_strip(uint32_t y0, uint32_t photo, const uint16_t *pal, int fx
                 sr += ph.pr[cin] - ph.pr[cout];
                 sg += ph.pg[cin] - ph.pg[cout];
                 sb += ph.pb[cin] - ph.pb[cout];
+            }
+        }
+        if (csplit) {                    /* the chorus: red a little left, blue a little right */
+            uint16_t row2[240];
+            for (x = 0; x < 240u; x++)
+                row2[x] = swap16(out[x]);
+            for (x = 0; x < 240u; x++) {
+                uint32_t rl = row2[clamp((int32_t)x + csplit, 0, 239)], br = row2[clamp((int32_t)x - csplit, 0, 239)];
+                out[x] = swap16((uint16_t)((rl & 0xF800u) | (row2[x] & 0x07E0u) | (br & 0x001Fu)));
             }
         }
         if (etrail) {                    /* the echo: each row trails copies of itself, fainter each time (left to right,
@@ -611,7 +627,7 @@ void app_say(const char *a, const char *b)
 
 static void speak(void)                  /* a screen reader that asks hears the patch and the knobs */
 {
-    char t[160], v[8];                   /* (the longest: 138, LATE BLOOM, every knob at 100, HOLD) */
+    char t[200], v[8];                   /* (the longest: 161, LATE BLOOM, every knob at 100, HOLD) */
     uint32_t k;
     if (ann_on() && ann_where()) {
         t[0] = 0;
@@ -1368,7 +1384,7 @@ static void input(void)
             beat_level_step(e * ((e > 2 || e < -2) ? 10 : 5));
         } else if (k == EN_SELECT) {     /* chord mode's key */
             key_set((int)set.key + (e > 0 ? 1 : -1));
-        } else if (k >= EN_K1 && k <= EN_K2 && (btn >> B_EDIT & 1u)) {   /* EDIT held: JET and ECHO */
+        } else if (k >= EN_K1 && k <= EN_K4 && (btn >> B_EDIT & 1u)) {   /* EDIT held: JET, ECHO, DRIVE, CHORUS */
             int32_t step = (e > 2 || e < -2) ? 10 : 5;
             uint32_t q = K_JET + (k - EN_K1);
             knob_set(q, (int32_t)set.knob[set.patch][q] + e * step, 1);
