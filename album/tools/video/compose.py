@@ -25,8 +25,8 @@ STRIPE = [(240, 138, 64), (224, 24, 24), (224, 64, 176), (122, 72, 184)]   # the
 SX, SY, SS = 108, 196, 864                      # the screen: 240 px at 3.6
 KX0, KX1, KY0, KY1 = 40, 1040, 1104, 1262       # the keys: F3 .. G5, 16 white
 WHITE_PC = {0, 2, 4, 5, 7, 9, 11}
-END = ["Eleven patches, each from its own photo", "Chord mode, ACCORDION and NOTES, in any key",
-       "A beat for every patch, a bass, fills", "A chord loop to play over",
+END = ["Twelve patches, each from its own photo", "Chord mode, ACCORDION and NOTES, in any key",
+       "A jet swirl and a tape echo", "A beat for every patch, a bass, fills", "A chord loop to play over",
        "Two FM-1s linked over Bluetooth play as one", "MIDI in and out: USB, Bluetooth, TRS"]
 
 
@@ -107,7 +107,7 @@ def frame(f, meta, d_in):
                font=fit("Install it from Chrome or Edge, or try it in your browser first", F_SUB, 980),
                fill=fade(SOFT, a), anchor="mm")
         for i, item in enumerate(END):
-            y = SY + 150 + i * 96
+            y = SY + 120 + i * 88
             d.ellipse([SX + 70, y - 9, SX + 88, y + 9], fill=fade(STRIPE[i % 4], a, (12, 8, 12)))
             d.text((SX + 112, y), item, font=F_LIST, fill=fade(INK, a, (12, 8, 12)), anchor="lm")
         d.text((W // 2, SY + SS - 70), "joshbartlettband-web.github.io/album-fm1", font=F_SUB,

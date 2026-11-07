@@ -91,7 +91,7 @@ void eng_note_off_isr(int note) { q_push(&q_isr, EV_OFF, note, 0); }
 void eng_sustain_isr(int on) { q_push(&q_isr, EV_SUS, on != 0, 0); }
 void eng_patch_isr(int p) { q_push(&q_isr, EV_PATCH, p, 0); }
 
-static volatile float knob_in[NKNOB] = {0.5f, 0.5f, 0.5f, 0.5f, 0.0f, 0.5f, 0.5f, 0.5f};
+static volatile float knob_in[NKNOB] = {0.5f, 0.5f, 0.5f, 0.5f, 0.0f, 0.5f, 0.5f, 0.5f, 0.0f, 0.0f};
 static volatile uint8_t fuzz_on = 1;
 void eng_fuzz_on(int on) { fuzz_on = (uint8_t)(on != 0); }
 void eng_knob(int k, float v)
@@ -1388,6 +1388,33 @@ int eng_b_sane(void)
 static float eq_a_l, eq_a_r, eq_b_l, eq_b_r;   /* the fuzz's EQ: its two crossovers */
 static float fz_now, fz_hp_l, fz_hp_r, fz_lp_l, fz_lp_r, fz_lo_l, fz_lo_r;
 
+/* The echo (ECHO): a dark tape echo of the voices and the room, in time with the tempo. Each repeat is darker and
+ * thinner than the one before (a low-pass at 2.4 kHz and a high-pass at 200 Hz in the loop), saturates softly, and
+ * wavers in pitch as tape does; the right side repeats 13 ms after the left. ECHO turns up the repeats and how many
+ * there are. The line is 16-bit, mono, 0.74 s (64 KB, in the pool), and the sound goes into it all the time, so
+ * turning ECHO up never plays something old */
+#define ECHO_N 32768u
+static int16_t echo_line[ECHO_N] PLAT_POOL;
+static uint32_t echo_w;
+static float echo_now, echo_t, echo_ph, echo_lp[2], echo_hp[2];
+
+/* The jet (JET): a flanger over everything, the beat too, sweeping slowly down and up as a jet plane passes over: the
+ * sound read back 0.3 to 5 ms late and mixed in, some of it fed back through a low-pass (no whistle). The right side
+ * sweeps a quarter turn behind the left */
+#define JET_N 512u
+static float jet_buf[2u * JET_N] PLAT_POOL;
+static uint32_t jet_w;
+static float jet_now, jet_ph, jet_fb[2];
+float eng_jet(void) { return jet_now * sine01(jet_ph); }
+
+static inline float echo_tap(float back)  /* the line, back samples ago, read between samples */
+{
+    uint32_t i = (uint32_t)back;
+    float f = back - (float)i;
+    float a = echo_line[(echo_w - i) & (ECHO_N - 1u)], b = echo_line[(echo_w - i - 1u) & (ECHO_N - 1u)];
+    return (a + (b - a) * f) * (1.0f / 16384.0f);
+}
+
 /* tremolo, wow and saturation: core 0, after the join */
 static float trem_l_ph, trem_r_ph, wow_ph, wow_flut;
 #define WOW_N 512u
@@ -1415,6 +1442,20 @@ void eng_end(int32_t *lr, uint32_t n, float gain)
     fz_now += ((fuzz_on ? B.knob[K_FUZZ] : 0.0f) - fz_now) * 0.25f;   /* (no clicks as it moves) */
     if (fz_now < 1e-4f)
         fz_now = 0.0f;
+    echo_now += (B.knob[K_ECHO] - echo_now) * 0.25f;   /* (both ease, as the fuzz does) */
+    if (echo_now < 1e-4f)
+        echo_now = 0.0f;
+    jet_now += (B.knob[K_JET] - jet_now) * 0.25f;
+    if (jet_now < 1e-4f)
+        jet_now = 0.0f;
+    const float ec = echo_now, e_mix = ec, e_fb = 0.3f + 0.5f * ec;
+    const float e_lpc = 1.0f - fm_expf(-FM_TWO_PI * 2400.0f / ENG_FS), e_hpc = 1.0f - fm_expf(-FM_TWO_PI * 200.0f / ENG_FS);
+    const float e_goal = fm_minf((p->echo_beats > 0.0f ? p->echo_beats : 0.75f) * 60.0f / tempo_bpm * ENG_FS,
+                                 (float)(ECHO_N - 900u));
+    const float jt = jet_now, j_mix = 0.8f * jt, j_fb = 0.55f * jt;
+    const float j_lpc = 1.0f - fm_expf(-FM_TWO_PI * 5000.0f / ENG_FS);
+    if (echo_t <= 0.0f)
+        echo_t = e_goal;
     const float fz = fz_now, fz_drive = 4.0f + 140.0f * fz * fm_sqrtf(fz), fz_mix = fm_minf(1.0f, fz * 3.0f);
     const float fz_out = FZ_OUT, fz_hpc = 1.0f - fm_expf(-FM_TWO_PI * 140.0f / ENG_FS);
     /* its tone: Tone opens it, and the EQ's high knob moves it too (as a pedal's tone knob does), 1/3 to 3 times */
@@ -1501,6 +1542,30 @@ void eng_end(int32_t *lr, uint32_t n, float gain)
             ol *= gl;
             or_ *= gr;
         }
+        {                                /* the echo */
+            float in = 0.5f * (ol + or_), w = 0.0f;
+            int32_t q;
+            echo_t += (e_goal - echo_t) * 0.00005f;   /* (a new tempo: the tape speeds up or slows, it does not jump) */
+            if (ec > 0.0f) {
+                float back = echo_t + 1.6f * sine01(echo_ph), y[2];
+                uint32_t s;
+                echo_ph = wrap01(echo_ph + 0.6f / ENG_FS);
+                for (s = 0; s < 2u; s++) {
+                    float x = echo_tap(back + (s ? 0.013f * ENG_FS : 0.0f));
+                    echo_lp[s] += e_lpc * (x - echo_lp[s]);
+                    echo_hp[s] += e_hpc * (echo_lp[s] - echo_hp[s]);
+                    if (fm_fabsf(echo_lp[s]) < 1e-12f)   /* (no denormals in the silence after) */
+                        echo_lp[s] = echo_hp[s] = 0.0f;
+                    y[s] = echo_lp[s] - echo_hp[s];
+                }
+                w = soft(y[0] * e_fb * 1.2f) * (1.0f / 1.2f);
+                ol += y[0] * e_mix;
+                or_ += y[1] * e_mix;
+            }
+            q = (int32_t)((in + w) * 16384.0f);
+            echo_line[echo_w] = (int16_t)(q > 32767 ? 32767 : q < -32768 ? -32768 : q);
+            echo_w = (echo_w + 1u) & (ECHO_N - 1u);
+        }
         if (C.run && !ext)
             clock_sample(sps, swing);
         {                                /* the kit: after the tremolo (it keeps time), some of it into the reverb */
@@ -1528,6 +1593,30 @@ void eng_end(int32_t *lr, uint32_t n, float gain)
             dry_last[2u * i + 1u] += dr * kit_send;
             ol += dl;
             or_ += dr;
+        }
+        {                                /* the jet */
+            float x[2] = {ol, or_};
+            uint32_t s;
+            if (jt > 0.0f) {
+                jet_ph = wrap01(jet_ph + 0.085f / ENG_FS);
+                for (s = 0; s < 2u; s++) {
+                    float back = (0.0003f + 0.0047f * (0.5f + 0.5f * sine01(wrap01(jet_ph + 0.25f * (float)s)))) * ENG_FS;
+                    uint32_t bi = (uint32_t)back, a0 = (jet_w - bi) & (JET_N - 1u), a1 = (a0 - 1u) & (JET_N - 1u);
+                    float fr = back - (float)bi;
+                    float d = jet_buf[2u * a0 + s] + (jet_buf[2u * a1 + s] - jet_buf[2u * a0 + s]) * fr;
+                    jet_fb[s] += j_lpc * (d - jet_fb[s]);
+                    if (fm_fabsf(jet_fb[s]) < 1e-12f)
+                        jet_fb[s] = 0.0f;
+                    jet_buf[2u * jet_w + s] = x[s] + j_fb * jet_fb[s];
+                    x[s] += d * j_mix;
+                }
+                ol = x[0] / (1.0f + 0.4f * jt);
+                or_ = x[1] / (1.0f + 0.4f * jt);
+            } else {
+                jet_buf[2u * jet_w] = ol;
+                jet_buf[2u * jet_w + 1u] = or_;
+            }
+            jet_w = (jet_w + 1u) & (JET_N - 1u);
         }
         /* tape: a slow wow and a little flutter on a short delay, then saturation */
         wow_buf[2u * wow_w] = ol;

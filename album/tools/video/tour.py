@@ -99,7 +99,7 @@ def tour():
     T = Tour()
     # the boot photo melting into the first patch, ALBUM 01 fading
     T.start()
-    T.cap("ALBUM 01", "Firmware for the M-VAVE FM-1: eleven sounds, each made from a photo")
+    T.cap("ALBUM 01", "Firmware for the M-VAVE FM-1: twelve sounds, each made from a photo")
     T.wait(4300)
     T.stop()
     T.wait(4900)                         # (the rest of the intro, off camera)
@@ -172,6 +172,37 @@ def tour():
     T.up("w4")
     T.wait(800)
 
+    # the two effects, under EDIT
+    T.cap("EDIT + K1  JET", "A slow jet-plane swirl over everything. The colors swirl with it")
+    T.down("w9", 100)
+    T.wait(300)
+    T.cmd("press EDIT", 2)
+    T.spin("K1", 40, 30)
+    T.cmd("release EDIT", 2)
+    T.wait(4200)
+    T.up("w9")
+    T.down("w7", 100)
+    T.wait(2600)
+    T.cmd("press EDIT", 2)
+    T.spin("K1", -40, 20)
+    T.cmd("release EDIT", 2)
+    T.up("w7")
+    T.wait(300)
+    T.cap("EDIT + K2  ECHO", "A dark tape echo, in time with the tempo. The photo trails it")
+    T.cmd("press EDIT", 2)
+    T.spin("K2", 33, 30)
+    T.cmd("release EDIT", 2)
+    T.wait(200)
+    for k in ("w4", "w9"):
+        T.note(k, 260, 104)
+        T.wait(2000)
+    T.note("b7", 260, 104)
+    T.wait(2600)
+    T.cmd("press EDIT", 2)
+    T.spin("K2", -33, 20)
+    T.cmd("release EDIT", 2)
+    T.wait(600)
+
     # the other ten patches, each with its own photo
     PATCHES = [
         ("MAPLE", "A soft reed organ that sways slowly", "w7"),
@@ -184,6 +215,7 @@ def tour():
         ("BLUESTEM", "A reed whistle: the chord comes as an arpeggio", "w9"),
         ("SNOWFALL", "Hollow glass notes sinking into a hush", "w7"),
         ("TOWER", "A tall chord that glows open after each note", "w4"),
+        ("LATE BLOOM", "A soft bell, its echoes falling like the leaves", "w7"),
     ]
     for name, what, k in PATCHES:
         T.spin("PRESET", 1, 1)

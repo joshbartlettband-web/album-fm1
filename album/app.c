@@ -26,17 +26,21 @@ static int c1_start(void) { return 0; }
 static int c1_report(char *a, char *b) { (void)a; (void)b; return 0; }
 #endif
 
-static const char *const KNOB_NAME[NKNOB] = {"GLIDE", "SWELL", "TONE", "BLUR", "FUZZ", "FUZZ LOW", "FUZZ MID", "FUZZ HIGH"};
+static const char *const KNOB_NAME[NKNOB] = {"GLIDE", "SWELL", "TONE", "BLUR", "FUZZ", "FUZZ LOW", "FUZZ MID", "FUZZ HIGH",
+                                             "JET", "ECHO"};
 /* each knob's MIDI CC, in and out (21 is the beat's level) */
-static const uint8_t KNOB_CC[NKNOB] = {16, 17, 18, 19, 20, 22, 23, 24};
-static float knob_start(const patch_t *p, uint32_t k) { return k >= K_FZLO ? 0.5f : p->knob[k]; }   /* (the EQ: flat) */
+static const uint8_t KNOB_CC[NKNOB] = {16, 17, 18, 19, 20, 22, 23, 24, 25, 26};
+static float knob_start(const patch_t *p, uint32_t k)   /* (the fuzz's EQ starts flat) */
+{
+    return k >= K_FZLO && k <= K_FZHI ? 0.5f : p->knob[k];
+}
 static inline float sine_wave(float x) { return fm_sinf(x * FM_TWO_PI); }
 #define MAX_PATCH 16u
 
 /* --------------------------------------------------------------- settings --- */
 enum { MODE_NOTES, MODE_CHORDS, MODE_ACCORDION };   /* set.chords: how the keys play (ARP) */
 #define MODE_TUNE 3                      /* (not a setting: the keys over a playing loop, single notes in the key) */
-#define SET_MAGIC 0x414C4238u            /* "ALB8": the MIDI channel (earlier layouts start fresh) */
+#define SET_MAGIC 0x414C4239u            /* "ALB9": JET and ECHO (earlier layouts start fresh) */
 typedef struct {
     uint32_t magic;
     uint8_t patch;
@@ -109,7 +113,8 @@ static void beat_to_engine(void)
  * them (and does not send them back out: two linked FM-1s would echo forever) */
 static volatile int32_t midi_patch_req = -1, midi_beat_req = -1;   /* (CC 21: the beat's level) */
 #define CC_BEAT 21u
-static volatile uint8_t midi_knob_req[NKNOB], midi_knob_mask, midi_panic_req, midi_hold_req;
+static volatile uint8_t midi_knob_req[NKNOB], midi_panic_req, midi_hold_req;
+static volatile uint16_t midi_knob_mask;  /* (a bit a knob: NKNOB is more than 8) */
 static volatile uint32_t midi_count;
 
 static volatile uint8_t midi_rx_ch;     /* set.midi_ch, for the render's MIDI in */
@@ -143,13 +148,13 @@ static void midi_in(void)
                 eng_sustain_isr(d2 >= 64u);
                 midi_hold_req = (uint8_t)(d2 >= 64u ? 2u : 1u);   /* the screen shows it (2 on, 1 off) */
             }
-            else if (d1 >= 16u && d1 <= 24u && d1 != CC_BEAT) {
+            else if (d1 >= 16u && d1 <= 26u && d1 != CC_BEAT) {
                 uint32_t k = 0;
                 while (k < NKNOB && KNOB_CC[k] != d1)
                     k++;
                 eng_knob((int)k, (float)d2 / 127.0f);
                 midi_knob_req[k] = (uint8_t)d2;
-                midi_knob_mask |= (uint8_t)(1u << k);
+                midi_knob_mask |= (uint16_t)(1u << k);
             } else if (d1 == CC_BEAT) {
                 midi_beat_req = (int32_t)d2;
             } else if (d1 == 123u || d1 == 120u)
@@ -316,13 +321,14 @@ static struct {
 } ph;
 
 /* the palette for this frame: Tone brightens, Swell lifts the reds, the sound makes the warm light flicker, the
- * beat's kick lifts it all a little */
+ * beat's kick lifts it all a little, the jet turns the colours */
 static void photo_palette(void)
 {
     const uint8_t *src = PHOTOS[ph.photo].pal;
     float tone = knob_val(K_TONE), swell = knob_val(K_SWELL);
     float bright = 0.7f + 0.55f * tone + 0.14f * eng_pulse(), lift = 0.55f * swell, fl = fm_minf(ph.level * 1.8f, 1.0f);
     float burn = set.fuzz_off ? 0.0f : knob_val(K_FUZZ);   /* the fuzz burns the colours: more contrast, more colour */
+    float jet = eng_jet();
     uint32_t i;
     for (i = 0; i < 16u; i++) {
         float r = src[3u * i], g = src[3u * i + 1u], b = src[3u * i + 2u];
@@ -344,6 +350,13 @@ static void photo_palette(void)
             g *= f;
             b *= f;
         }
+        if (jet != 0.0f) {               /* the jet swirls the colours round the wheel as it sweeps */
+            float c = fm_cosf(jet * 1.6f), s = fm_sinf(jet * 1.6f) * 0.57735f, o = (1.0f - c) * (1.0f / 3.0f);
+            float r2 = r * (c + o) + g * (o - s) + b * (o + s), g2 = r * (o + s) + g * (c + o) + b * (o - s);
+            b = r * (o - s) + g * (o + s) + b * (c + o);
+            r = r2;
+            g = g2;
+        }
         ph.pr[i] = (uint8_t)fm_clampf(r, 0.0f, 255.0f);
         ph.pg[i] = (uint8_t)fm_clampf(g, 0.0f, 255.0f);
         ph.pb[i] = (uint8_t)fm_clampf(b, 0.0f, 255.0f);
@@ -351,13 +364,25 @@ static void photo_palette(void)
     }
 }
 
+/* two byte-swapped RGB565 colours: a to b by t (0..256) */
+static inline uint16_t blend565(uint16_t a, uint16_t b, uint32_t t)
+{
+    uint32_t x = swap16(a), y = swap16(b);
+    uint32_t r = ((x >> 11) * (256u - t) + (y >> 11) * t) >> 8, g = (((x >> 5) & 63u) * (256u - t) + ((y >> 5) & 63u) * t) >> 8;
+    uint32_t bl = ((x & 31u) * (256u - t) + (y & 31u) * t) >> 8;
+    return swap16((uint16_t)(r << 11 | g << 5 | bl));
+}
+
 /* rows y0 .. y0 + STRIP of a photo into the canvas in the colours pal; fx: with the knobs' marks (the waver, the smear,
- * in ph's colours), else plain */
+ * in ph's colours, the echo's trail), else plain */
 static void photo_strip(uint32_t y0, uint32_t photo, const uint16_t *pal, int fx)
 {
     const photo_t *p = &PHOTOS[photo];
     float glide = fx ? knob_val(K_GLIDE) : 0.0f, blur = fx ? knob_val(K_BLUR) : 0.0f, arm = fx ? eng_arm() : 0.0f;
     int32_t rad = (int32_t)(blur * blur * blur * 6.0f);    /* Blur: a sideways smear, up to 6 pixels each way */
+    float echo = fx ? knob_val(K_ECHO) : 0.0f;
+    uint32_t etrail = (uint32_t)(echo * 120.0f);           /* Echo: copies up to 47% strong, 8 to 20 pixels apart */
+    int32_t egap = 8 + (int32_t)(echo * 12.0f);
     float amp = glide * glide * 7.0f;                      /* Glide: the rows waver, as the pitch does */
     uint32_t b, y, x;
     for (b = 0; b < STRIP / PHOTO_BAND; b++) {
@@ -382,8 +407,7 @@ static void photo_strip(uint32_t y0, uint32_t photo, const uint16_t *pal, int fx
                 int32_t sx = clamp((int32_t)x - dx, 0, 239);
                 out[x] = pal[row[sx]];
             }
-            continue;
-        }
+        } else
         {   /* the smear: a running sum over 2 rad + 1 pixels, each colour apart */
             int32_t sr = 0, sg = 0, sb = 0, n = 2 * rad + 1, xi;
             for (xi = -rad; xi <= rad; xi++) {
@@ -399,6 +423,11 @@ static void photo_strip(uint32_t y0, uint32_t photo, const uint16_t *pal, int fx
                 sg += ph.pg[cin] - ph.pg[cout];
                 sb += ph.pb[cin] - ph.pb[cout];
             }
+        }
+        if (etrail) {                    /* the echo: each row trails copies of itself, fainter each time (left to right,
+                                          * so every copy carries the ones before it, as the repeats do) */
+            for (x = (uint32_t)egap; x < 240u; x++)
+                out[x] = blend565(out[x], out[x - (uint32_t)egap], etrail);
         }
     }
 }
@@ -582,7 +611,7 @@ void app_say(const char *a, const char *b)
 
 static void speak(void)                  /* a screen reader that asks hears the patch and the knobs */
 {
-    char t[96], v[8];
+    char t[160], v[8];                   /* (the longest: 138, LATE BLOOM, every knob at 100, HOLD) */
     uint32_t k;
     if (ann_on() && ann_where()) {
         t[0] = 0;
@@ -1335,6 +1364,10 @@ static void input(void)
             beat_level_step(e * ((e > 2 || e < -2) ? 10 : 5));
         } else if (k == EN_SELECT) {     /* chord mode's key */
             key_set((int)set.key + (e > 0 ? 1 : -1));
+        } else if (k >= EN_K1 && k <= EN_K2 && (btn >> B_EDIT & 1u)) {   /* EDIT held: JET and ECHO */
+            int32_t step = (e > 2 || e < -2) ? 10 : 5;
+            uint32_t q = K_JET + (k - EN_K1);
+            knob_set(q, (int32_t)set.knob[set.patch][q] + e * step, 1);
         } else if (k >= EN_K1 && k <= EN_K3 && (btn >> B_FX & 1u)) {   /* FX held: the fuzz's EQ, low, mid, high */
             int32_t step = (e > 2 || e < -2) ? 10 : 5;
             uint32_t q = K_FZLO + (k - EN_K1);
@@ -1609,7 +1642,7 @@ void app_frame(void)
         beat_level_set((b * 100 + 63) / 127, 0);
     }
     if (midi_knob_mask) {
-        uint8_t m = midi_knob_mask;
+        uint16_t m = midi_knob_mask;
         midi_knob_mask = 0;
         for (k = 0; k < NKNOB; k++)
             if (m >> k & 1u)
