@@ -1,0 +1,65 @@
+# Album: the two effects and LATE BLOOM (album_host effects.txt OUTDIR). EDIT held: K1 is JET, K2 is ECHO, each
+# patch its own, out as CC 25 and 26; MIDI in sets them too. LATE BLOOM, the twelfth patch, starts with ECHO up.
+wait 9000
+master 3400
+expect knob8 0
+expect knob9 0
+# EDIT held and K1: the jet, on RED DOOR, a chord held
+out
+key w4 down 100
+press EDIT
+spin K1 1
+wait 60
+spin K1 1
+wait 60
+expect knob8 10
+expect_out USB B0 19 05
+release EDIT
+wait 40
+# without EDIT, K1 is Glide again
+spin K1 1
+wait 60
+expect knob8 10
+expect knob0 145
+spin K1 -1
+wait 60
+# MIDI in: the jet up to 80, the echo to 60, shown and not sent back
+out
+midi B0 19 66
+wait 60
+expect knob8 205
+midi B0 1A 4C
+wait 60
+expect knob9 153
+expect_no_out USB B0 19 66
+wav jet.wav
+wait 6000
+key w4 up
+wait 3000
+wavstop
+# HOME: RED DOOR's own, the effects off
+tap HOME
+wait 60
+expect knob8 0
+expect knob9 0
+# LATE BLOOM, the last patch: its own photo, the echo up, the jet off
+turn PRESET -1
+wait 200
+expect patch 11
+expect photo 12
+expect knob8 0
+expect knob9 128
+listen
+wav late-bloom.wav
+key w4 down 96
+wait 2600
+key w4 up
+key w9 down 96
+wait 2600
+key w9 up
+key w7 down 96
+wait 2600
+key w7 up
+wait 4000
+wavstop
+shot late-bloom.png

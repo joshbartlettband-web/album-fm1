@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: MIT
- * Copyright (c) 2026 Hausway */
+ * Copyright (c) 2026 Alive-Stable-7254 */
 /* Album's sound engine: detuned voices that never sit still in pitch (the tremolo arm of glide guitar), through a
  * fully wet reverse reverb, a two-speed tremolo and a little tape.
  *
@@ -20,8 +20,9 @@
 #define ENG_BLOCK_MAX 256u
 #define ENG_SUB 16u                      /* samples between pitch, filter and tremolo updates */
 
-/* K_FUZZ: ALGORITHM; K_FZLO, K_FZMID, K_FZHI: the fuzz's own EQ (FX held and K1 to K3), 0.5 flat */
-enum { K_GLIDE, K_SWELL, K_TONE, K_BLUR, K_FUZZ, K_FZLO, K_FZMID, K_FZHI, NKNOB };
+/* K_FUZZ: ALGORITHM; K_FZLO, K_FZMID, K_FZHI: the fuzz's own EQ (FX held and K1 to K3), 0.5 flat; K_JET, K_ECHO:
+ * the two effects on the whole sound (EDIT held and K1, K2) */
+enum { K_GLIDE, K_SWELL, K_TONE, K_BLUR, K_FUZZ, K_FZLO, K_FZMID, K_FZHI, K_JET, K_ECHO, NKNOB };
 enum { WAVE_SAW, WAVE_PULSE, WAVE_TRI, WAVE_SINE, WAVE_FM };
 /* chord mode's voicings, one a patch (the voicings themselves are the app's: chords.h) */
 enum { CH_OPEN, CH_ORGAN, CH_POWER, CH_DARK, CH_SPREAD, CH_CLUSTER, CH_SEVENTH, CH_FIFTHS, CH_ARP, CH_ICE, CH_TALL,
@@ -73,6 +74,7 @@ typedef struct {
     float diffuse;                       /* how much Blur smears the reverb, 0..1 */
     float tape;                          /* saturation and wow, 0..1 */
     float level;                         /* the patch's loudness trim */
+    float echo_beats;                    /* the echo's repeat, in beats at the tempo (0: a dotted eighth, 0.75) */
     float knob[NKNOB];                   /* the knobs where the patch starts */
     uint8_t chord;                       /* CH_*: how chord mode voices a chord on this patch */
     uint8_t arp_div;                     /* mono patches in chord mode: sixteenths between the arpeggio's notes */
@@ -111,12 +113,26 @@ uint32_t eng_ticks(void);                /* clock ticks (24 a beat) since the be
 uint32_t eng_step(void);                 /* sixteenths since the beat started */
 float eng_pulse(void);                   /* the kick, 0..1, decaying: the photo's pulse */
 int eng_clock_ext(void);                 /* 1 while a clock comes in */
+int eng_clock_running(void);             /* 1 while the clock runs (the beat, an arpeggio or the loop) */
+void eng_clock_keep(int on);             /* main loop: keep the clock running with the beat off (for the loop) */
+
+/* the chord loop (the app's REC and PLAY): a chord a bar on the clock's bar lines, one to eight bars. The app writes
+ * a bank's chords from the main loop (the bank that is not playing), then plays it from bar pos, now or from the
+ * next bar line; a mono patch plays each chord as its arpeggio */
+#define ENG_LOOP_BARS 8u
+void eng_loop_chord(int bank, int bar, const int16_t *notes, int n, int vel);
+void eng_loop_start(int bank, int bars, int pos, int now);
+void eng_loop_now(int bank);             /* the bank re-voiced (another patch, another key): its bar's chord, now */
+void eng_loop_stop(void);
+int eng_loop_bar(void);                  /* the loop's bar playing, -1 while it is off */
 
 int eng_patch_count(void);
 const patch_t *eng_patch_info(int p);
 float eng_level(void);                   /* the output's level, 0..~1, smoothed: the screen's flicker */
 float eng_arm(void);                     /* the arm now, -1 (bent all the way down) .. 0: the screen's waver */
+float eng_jet(void);                     /* the jet's sweep now, -1 .. 1, times how far JET is up: the screen's swirl */
 uint32_t eng_voices_on(void);            /* voices sounding */
+uint32_t eng_voices_held(void);          /* of them, those not letting go (a key, HOLD or the loop holds them) */
 int eng_voice_cap(int n);                /* voices allowed (the overload's shedding); returns the cap */
 
 void eng_begin(uint32_t n);

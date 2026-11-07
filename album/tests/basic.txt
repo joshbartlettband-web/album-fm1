@@ -34,19 +34,19 @@ shot knob.png
 tap HOME
 wait 30
 expect knob0 77
-# PLAY holds the notes
-tap PLAY
+# a sustain pedal (CC 64 in) holds the notes; PLAY is the chord loop's now (loop.txt)
+midi B0 40 7F
 wait 30
 expect hold 1
-expect_out USB B0 40 7F
 key w4 down 100
 wait 30
 key w4 up
 wait 400
-expect voices 1
-tap PLAY
+expect held 1
+midi B0 40 00
 wait 30
 expect hold 0
+expect held 0
 # the octave, saving, and everything back after a restart
 tap OCT+
 wait 30

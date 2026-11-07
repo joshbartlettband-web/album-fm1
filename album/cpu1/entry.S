@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: MPL-2.0
- * Copyright (c) 2026 Hausway
+ * Copyright (c) 2026 Alive-Stable-7254
  * The entry's four steps are felucca-bsp's chip/fm1_cpu1.S (MPL-2.0, Leo Kuroshita, Hugelton Instruments), after the
  * AC79 SDK's cpu1_start: the two stacks, the return address, then rti into the second core's C. */
 /* Album's second core: its entry and its stacks (1 KiB user, 4 KiB supervisor; the SDK's are 0x300 and 0x1000). */

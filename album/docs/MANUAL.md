@@ -46,12 +46,12 @@ shows at the top for a moment when you choose it, and a knob's value shows at th
 | LFO | The beat: SPARSE, AS WRITTEN, BUSY (lit unless as written) |
 | GLO | The auto bass on or off (lit while on) |
 | SEQ | The patch's beat on or off (blinks with it). Held: ALGORITHM sets the tempo, SELECT the beat's level |
-| EDIT | Shows the MIDI channel. Held: SELECT sets it (section 9), and the top of the screen shows how hard the FM-1 is working (section 10) |
-| PLAY | Hold: the notes keep sounding after you let go (lit green). Again: let go. |
+| EDIT | Shows the MIDI channel. Held: K1 and K2 are the two effects, JET and ECHO (section 3), SELECT sets the MIDI channel (section 9), and the top of the screen shows how hard the FM-1 is working (section 10) |
+| PLAY | The chord loop: stop it, or start it again from its first bar (lit green while it plays). While recording: close the loop (section 5) |
 | OCT- / OCT+ | The octave, two down to two up |
-| HOME | This patch's five knobs and tempo back where it starts |
+| HOME | This patch's knobs, its effects and its tempo back where it starts |
 | SAVE | Keep everything (lit when something changed): section 8 |
-| REC | Link to another FM-1 (section 7). Held a second: Bluetooth off or on |
+| REC | Record a chord loop (section 5). Held a second: link to another FM-1 (section 7). Held three seconds: Bluetooth off or on |
 | MASTER | Volume |
 
 ![Red Door with a chord held: the photo wavers sideways with the pitch](img/screen-playing.png "Playing: the photo moves with the sound")
@@ -72,6 +72,14 @@ Every patch has the same five knobs: K1 to K4, and ALGORITHM for the fuzz. Each 
 
 The warm light in each photo (a fire, the sun, a lamp) flickers with the sound's level.
 
+**The two effects.** Hold EDIT and turn K1 or K2. They go on the whole sound, and each patch keeps its own; most
+start off.
+
+| Knob | The sound | The photo |
+| --- | --- | --- |
+| EDIT + K1 Jet | A flanger over everything, the beat too, sweeping slowly down and back up as a jet plane passes over, about every 12 seconds. Off to a deep swirl | The colors swirl round the color wheel with the sweep |
+| EDIT + K2 Echo | A dark tape echo in time with the tempo, a dotted eighth apart. Each repeat is darker and thinner than the one before and wavers a little, as tape does; the right side comes back a moment after the left. Off to long and loud | Each row trails fainter copies of itself |
+
 ## 4. The patches
 
 Each patch has its own photo, and its sound comes from that photo.
@@ -89,6 +97,7 @@ Each patch has its own photo, and its sound comes from that photo.
 | 9 | BLUESTEM | Tall prairie grass, blue sage, a moth | One note at a time: a thin reed whistle, like a blade of grass blown between the thumbs |
 | 10 | SNOWFALL | A back yard at night, snow coming down | Soft, hollow glass notes, muffled, each sinking into a long hush |
 | 11 | TOWER | A tower block lit gold by the last sun | A tall chord, octaves stacked, that starts dark and glows open after each note |
+| 12 | LATE BLOOM | One pink dahlia still open in October, the leaves fallen on the brick | A soft bell that opens after each note, the echo up so its repeats fall away like the leaves |
 
 ## 5. Chord mode
 
@@ -148,13 +157,31 @@ key, and chord mode stays on. The key shows at the bottom right. Chords you are 
 | BLUESTEM | An arpeggio: the chord's notes one at a time, up and down, in time with the beat |
 | SNOWFALL | Sixths and ninths, close at the top |
 | TOWER | Open chords, each voice doubled an octave up |
+| LATE BLOOM | Spread wide, as CLEMATIS's: added ninths with the sixth on top; V suspended |
 
 **Holding two chords** sounds both. A note they share sounds once and keeps ringing until you let go of both, as an
 open string rings through a change of chord.
 
+**The loop.** Press REC and play some chords, one a bar, and the FM-1 loops them for you to play over. REC blinks
+while it waits for the first chord. The loop starts on that chord's bar. A chord played in the last beat of a bar
+counts for the next one, so you can come in a little early. Press REC again, or PLAY, to close the loop on the
+nearest bar line. It can be 1 to 8 bars long, and at 8 it closes itself. A bar where you played no new chord keeps
+the one before. While it records, REC stays lit and the bottom of the screen counts the bars: REC 1, REC 2.
+
+Then it plays. PLAY is lit green, the bottom of the screen reads LOOP 2/4, and each chord is spelled out on the photo
+as it comes round. The keys play single notes over it: the white keys kept in the key, as in ACCORDION, the black keys
+as they are. A note you play that the chord has too rings on with the chord. The bass (GLO) follows the loop.
+
+PLAY stops the loop, and PLAY again starts it from its first bar. REC while it plays starts a new one, and the old
+loop keeps going until your first new chord; REC again before that leaves the old loop as it was. The loop keeps the
+keys you pressed, not their notes, so another patch voices it its own way, and SELECT moves it to the new key. It
+keeps time with the beat, or runs on its own with the beat off, and starting the beat starts it from its first bar
+again. It isn't saved: it lasts until you switch off.
+
 **Voices.** There are twelve (eight on one core: section 10). A chord takes three to six. When a new note needs a
 voice and none is free, it takes the quietest voice that is fading out, whose sound is mostly in the reverb by then;
-then a voice that only HOLD is keeping; only then the oldest note still under a finger. A key never stays silent.
+then a voice that only HOLD (a sustain pedal, section 9) is keeping; only then the oldest note still under a
+finger. A key never stays silent.
 If the FM-1 ever has to drop a voice or two to keep up, they come back a couple of seconds after the load eases.
 
 ## 6. The beat
@@ -176,6 +203,7 @@ light a little.
 | BLUESTEM | 168 | A double-time break, quiet and far off (after wonder 2) |
 | SNOWFALL | 64 | Almost nothing gets through the snow |
 | TOWER | 104 | Scattered late-90s dance drums, kept soft (after In Another Way) |
+| LATE BLOOM | 76 | A slow, steady brush beat, the kick barely there |
 
 Hold SEQ and turn ALGORITHM to change the tempo; each patch keeps its own, and HOME puts it back. Hold SEQ and turn
 SELECT to set the beat's level, apart from the rest of the sound: five steps a click, a bar at the bottom like the
@@ -195,13 +223,14 @@ note to note. It plays only while the beat runs, at the beat's level.
 
 ## 7. Two FM-1s as one
 
-Two FM-1s running Album link over Bluetooth and play as one: the keys, the knobs, the patch and hold go from each to
-the other. In chord mode the chord's notes go across, so the other FM-1 plays the same chord. Start the beat on one
+Two FM-1s running Album link over Bluetooth and play as one: the keys, the knobs and the patch go from each to the
+other. In chord mode the chord's notes go across, so the other FM-1 plays the same chord. A chord loop stays on the
+FM-1 that recorded it: the other hears its chords while you record them, not when they loop. Start the beat on one
 and the other starts its own beat in time with it, following its clock, and stops when it stops. Each unit drifts in pitch on its own, so together they detune against each other like two guitars.
 
-1. On one FM-1, press REC: LINK LOOKING.
+1. On one FM-1, hold REC for a second: LINK LOOKING.
 2. Turn ALGORITHM to choose the other FM-1 when its name shows.
-3. Press REC again: LINKING, then LINK CONNECTED. LINK stays at the top right while the link is up.
+3. Hold REC for a second again: LINKING, then LINK CONNECTED. LINK stays at the top right while the link is up.
 
 A computer or a tablet can connect over Bluetooth MIDI too, at the same time. Album links to a stock FM-1 as well
 (it plays its own sounds); that has not been tried on hardware yet.
@@ -212,7 +241,7 @@ Bluetooth adds a little delay. The slow-swelling patches hide it well.
 
 SAVE keeps the patch you are on, every patch's knobs and tempo, the octave, chord mode and its key, whether the fuzz is in, and the beat's
 level. They come back at the next power-on. Saving
-stops the sound for a moment (the flash is written), so save between phrases.
+stops the sound for a moment (the flash is written), so save between phrases. The chord loop is not saved.
 
 ## 9. MIDI
 
@@ -220,18 +249,19 @@ In over USB, Bluetooth and the TRS jack; out over USB and Bluetooth.
 
 **The channel.** Hold EDIT and turn SELECT: ALL, then 1 to 16. On ALL (the start), Album hears every channel and sends
 on 1. On a number, it hears only that channel and sends everything on it: the keys and chords, the knobs, the
-patch, hold. Clock, start and stop have no channel, so the beat keeps time with anything. It is saved with SAVE.
+patch. Clock, start and stop have no channel, so the beat keeps time with anything. It is saved with SAVE.
 Two linked FM-1s need the same channel, or ALL.
 
 | Message | In | Out |
 | --- | --- | --- |
 | Note on and off | Plays | The keys (in chord mode, each chord's notes) |
 | CC 16, 17, 18, 19, 20 | Glide, Swell, Tone, Blur, Fuzz | K1 to K4, ALGORITHM |
-| CC 64 | Hold | PLAY |
+| CC 64 | Hold, as a sustain pedal does | |
 | Program change | The patch (0 is RED DOOR) | PRESET |
 | CC 120, 123 | All sound off | |
 | CC 21 | The beat's level | SEQ held and SELECT |
 | CC 22, 23, 24 | The fuzz's low, mid, high | FX held and K1, K2, K3 |
+| CC 25, 26 | Jet, Echo | EDIT held and K1, K2 |
 | Clock, start, stop | The beat follows another FM-1 or a computer | While this FM-1's beat runs |
 
 Nothing received is sent back out, so two linked FM-1s never echo.

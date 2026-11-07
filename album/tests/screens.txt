@@ -15,6 +15,16 @@ key w6 up
 key w8 up
 key w10 up
 wait 1500
-tap PLAY
-wait 1800
-shot screen-hold.png
+tap REC
+wait 100
+key w4 down 96
+wait 2600
+key w4 up
+wait 190
+key w9 down 96
+wait 2600
+key w9 up
+wait 190
+tap REC
+wait 1500
+shot screen-loop.png
