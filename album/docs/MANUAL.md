@@ -156,7 +156,7 @@ key, and chord mode stays on. The key shows at the bottom right. Chords you are 
 | WHIRL | Clusters: the second packed against the third |
 | WINDOW | An electric piano's sevenths and ninths; the borrowed chords as dominant sevenths |
 | PASTURE | Root, octave and tenth, each voice adding its own fifth; V suspended |
-| BLUESTEM | An arpeggio: the chord's notes one at a time, up and down, in time with the beat |
+| BLUESTEM | An arpeggio on the beat's sixteenths: a four-bar phrase, a figure a bar with accents and rests. Bars 1 and 3 push in threes, 3-3-2; bar 2 climbs, busier; bar 4 runs down to a held note. Each bar starts its walk through the chord again on the bar line, and now and then a soft note drops out or an accent jumps an octave. A new chord comes in on the next sixteenth |
 | SNOWFALL | Sixths and ninths, close at the top |
 | TOWER | Open chords, each voice doubled an octave up |
 | LATE BLOOM | Spread wide, as CLEMATIS's: added ninths with the sixth on top; V suspended |

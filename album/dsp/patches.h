@@ -35,6 +35,12 @@ static const beat_t BEAT_WINDOW = {.bpm = 80.0f, .swing = 0.2f, .tone = 2600.0f,
 /* a heartbeat, slow, and a brush */
 static const beat_t BEAT_PASTURE = {.bpm = 72.0f, .tone = 1500.0f, .send = 0.5f, .level = 0.9f, .brush = 1,
     .kick = "x..-....x..-....", .snare = "....-.......-..."};
+/* BLUESTEM's arpeggio: a four-bar phrase, the double-time break's push in it. Bars 1 and 3 a 3-3-2 figure (walked
+ * up and down, then the top note between the others), bar 2 busier and climbing, bar 4 a run down to a held note */
+static const arp_t ARP_BLUESTEM = {
+    .fig = {"x..o..x.o..x..o.", "x.o.o-o.x..o.oo.", "x..o..x.o.o.x.o.", "x.o.o.o.xooox---"},
+    .order = {ARP_UPDOWN, ARP_UP, ARP_PINKY, ARP_DOWN},
+};
 /* Wonder 2: the double-time break, here quiet and far off under the whistle */
 static const beat_t BEAT_BLUESTEM = {.bpm = 168.0f, .tone = 2400.0f, .send = 0.25f, .level = 0.75f,
     .kick = "x.x.......xx....", .snare = "....x..-.x..x..-", .hat = "x.x.x.x.x.x.x.x."};
@@ -137,7 +143,7 @@ static const patch_t PATCHES[] = {
      .trem_l = 7.5f, .trem_r = 9.2f, .trem_depth = 0.18f,
      .swell_lo = 0.15f, .swell_hi = 1.2f, .wet_lo = 0.3f, .wet_hi = 0.9f, .diffuse = 0.85f,
      .tape = 0.25f, .level = 1.55f, .knob = {0.45f, 0.5f, 0.55f, 0.5f, 0.2f},
-     .chord = CH_ARP, .arp_div = 2, .beat = &BEAT_BLUESTEM},
+     .chord = CH_ARP, .arp = &ARP_BLUESTEM, .beat = &BEAT_BLUESTEM},
     /* Snowfall: a back yard at night, snow coming down through the porch light onto the grill and the pots. Glass
      * notes, hollow and soft, muffled the way snow muffles everything, each sinking into a long hush. */
     {.name = "SNOWFALL", .photo = 9, .wave = WAVE_FM, .oscs = 3, .detune = 8.0f, .fm_ratio = 2.0f,

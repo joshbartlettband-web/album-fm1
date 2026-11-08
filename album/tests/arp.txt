@@ -1,0 +1,71 @@
+# Album: BLUESTEM's arpeggio on the beat (album_host arp.txt OUTDIR). Its phrase is a figure a bar on the
+# clock's sixteenths (168 BPM: 89.3 ms each): an accent on the bar line, a rest after it, the walk again each bar
+wait 9000
+spin PRESET 1
+wait 40
+spin PRESET 1
+wait 40
+spin PRESET 1
+wait 40
+spin PRESET 1
+wait 40
+spin PRESET 1
+wait 40
+spin PRESET 1
+wait 40
+spin PRESET 1
+wait 40
+spin PRESET 1
+wait 40
+wait 500
+expect patch 8
+press SEQ
+wait 60
+release SEQ
+wait 539
+key w4 down 100
+wait 921
+# step 16: bar 2's first step: an accent
+expect held 1
+wait 89
+# step 17: a rest
+expect held 0
+wait 89
+# step 18: a note
+expect held 1
+wait 179
+# step 20: and a note
+expect held 1
+wait 1071
+# step 32: bar 3: an accent
+expect held 1
+wait 89
+# step 33: a rest
+expect held 0
+wait 90
+# step 34: a rest
+expect held 0
+wait 89
+# step 35: a note
+expect held 1
+wait 2232
+# step 60: bar 4: an accent
+expect held 1
+wait 89
+# step 61: held
+expect held 1
+wait 179
+# step 63: held to the bar's end
+expect held 1
+wait 89
+# step 64: bar 5, the phrase again
+expect held 1
+wait 90
+# step 65: a rest
+expect held 0
+key w4 up
+press SEQ
+wait 60
+release SEQ
+wait 1500
+expect held 0

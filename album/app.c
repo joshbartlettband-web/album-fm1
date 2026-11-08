@@ -1635,6 +1635,14 @@ void app_frame(void)
     uint8_t link = (uint8_t)(FM1B_BLE_CENTRAL && plat_ble_device() == BLE_DEV_READY);
 #ifndef PLAT_HOST
     c1_radio();
+    if (radio_quiet) {                   /* Bluetooth's first second: what is read from the flash can come back wrong
+                                          * (radio.c), and the screen is the most of it (two photos decompressed, 30
+                                          * frames a second in the intro). It holds, as the sound does; the keys and
+                                          * the lights go on. A crash at boot, PC 00000470, came from this window */
+        input();
+        ph.dirty = 1;                    /* (drawn afresh when it is over) */
+        return;
+    }
 #endif
     loop_tick();
     input();

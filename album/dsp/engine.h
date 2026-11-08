@@ -28,6 +28,14 @@ enum { WAVE_SAW, WAVE_PULSE, WAVE_TRI, WAVE_SINE, WAVE_FM };
 enum { CH_OPEN, CH_ORGAN, CH_POWER, CH_DARK, CH_SPREAD, CH_CLUSTER, CH_SEVENTH, CH_FIFTHS, CH_ARP, CH_ICE, CH_TALL,
        NCHORD };
 
+/* an arpeggio's phrase (a mono patch in chord mode): four bars of sixteenths on the clock, a figure a bar. 'x' an
+ * accented note, 'o' a note, '-' the note before held on, '.' a rest; each bar walks the chord its own way */
+enum { ARP_UPDOWN, ARP_UP, ARP_DOWN, ARP_PINKY };   /* PINKY: the top note between each of the others, coming down */
+typedef struct {
+    const char *fig[4];                  /* 16 steps each */
+    uint8_t order[4];
+} arp_t;
+
 /* a patch's beat: one bar of sixteenths a drum, written as text, '.' a rest and '-' 'o' 'x' soft, medium, full */
 typedef struct {
     float bpm;
@@ -78,6 +86,7 @@ typedef struct {
     float knob[NKNOB];                   /* the knobs where the patch starts */
     uint8_t chord;                       /* CH_*: how chord mode voices a chord on this patch */
     uint8_t arp_div;                     /* mono patches in chord mode: sixteenths between the arpeggio's notes */
+    const arp_t *arp;                    /* ... or its phrase, in place of the steady arp_div */
     const beat_t *beat;                  /* its beat */
 } patch_t;
 
