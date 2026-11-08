@@ -28,6 +28,10 @@ photographs they came from, and each sound moves its photo as you play. Edition 
 Try it first in the browser emulator: the same code, with sound. To install, open the install page in Chrome or Edge
 with the FM-1 connected by USB. The installer saves a backup first and can put M-VAVE's firmware back.
 
+If Album won't start or the install page can't reach it, hold REC while switching the FM-1 on. With m-bootloader
+installed (the install page offers it), that is m-bootloader's update mode, and the install page installs from there.
+Without it, it is the chip's own update mode: a rescue tool puts M-VAVE's firmware back from there, then install again.
+
 ## 2. Playing
 
 The keys play. PRESET (the big knob) picks the patch, and with it the photo. The screen is the photo; a patch's name
@@ -298,3 +302,9 @@ STEP 7 OF 7 (while starting) or RUNNING, BLOCK and a number (after that many blo
 - **A crash screen right after installing:** switching from another firmware can leave its last crash behind for
   Album to show once. Turn the FM-1 off and on.
 - **Back to M-VAVE's firmware:** the install page has a button for it.
+- **A newer FM-1 that won't save or update:** FM-1s sold since fall 2026 have a different flash chip (a UC25HQ80,
+  not the Puya P25Q80). Album 0.1.61 and earlier didn't know it: on those units SAVE fails and the install page can't
+  update the FM-1 or put M-VAVE's firmware back. The FM-1 isn't damaged, and it still plays. Later versions take the
+  new chip. On a unit stuck with an older Album: if m-bootloader is installed, hold REC while switching on and
+  reinstall. If not, a rescue tool that knows the new chip (MvaveFM1Unbricker) puts M-VAVE's firmware back through the
+  chip's update mode; then install again.
