@@ -29,7 +29,7 @@ time they ring, heard through a reverse reverb.
 
 | Path | What |
 | --- | --- |
-| `album/` | the firmware: `app.c` (the screen, the controls, MIDI), `dsp/` (the sound), `cpu1/` (the second core), `photos/` (the photos and their palettes), `tests/` (simulator scripts), `shelf/` (patches kept for later, not built), `site/` (the front page; `more/` holds the cards for Josh's other projects, which `tools/more.py` adds to it) |
+| `album/` | the firmware: `app.c` (the screen, the controls, MIDI), `dsp/` (the sound), `supply.h` (the power supply setup for two cores), `photos/` (the photos and their palettes), `tests/` (simulator scripts), `shelf/` (patches kept for later, not built), `site/` (the front page; `more/` holds the cards for Josh's other projects, which `tools/more.py` adds to it) |
 | `base/` | [fm1-base](https://github.com/charlesvestal/fm1-base) (submodule): the platform, the simulator, the build and install tools |
 | `.github/workflows/` | the build: tests, the firmware with and without Bluetooth, the site (GitHub Pages); tags make attested releases |
 
@@ -58,6 +58,6 @@ Each patch gets its own photo, and the sound comes from what is in it.
 
 ## Licence
 
-MIT (`LICENSE`), except `album/cpu1/entry.S`, whose four instructions come from felucca-bsp and stay MPL-2.0. Built on
+MIT (`LICENSE`). Built on
 fm1-base by Charles Vestal and felucca-bsp by Leo Kuroshita, Hügelton Instruments (both MPL-2.0, in `base/`). The Bluetooth build links JieLi's AC79 SDK libraries (Apache-2.0, not in this repository). The photos are
 by u/Alive-Stable-7254. M-VAVE and FM-1 are trademarks of their owners; Album is not affiliated with M-VAVE.

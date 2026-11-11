@@ -1,16 +1,20 @@
 /* SPDX-License-Identifier: MIT
  * Copyright (c) 2026 Alive-Stable-7254 */
 /* Album's supply setup (device only; included by app.c inside the unity build, after the platform, whose fm1_sys.h
- * gives the P33 access). fm1-base raises VDC14 and SYSVDD; this adds the rest of M-VAVE's own start. */
+ * gives the P33 access). Run in app_init, and only when two cores are asked for, before the second core starts. */
 /* ------------------------------------------------- the stock supply setup --- */
-/* M-VAVE's V15 does more than raise the two levels as it starts: it hands the 1.3 V supply from its LDO to its
+/* M-VAVE's V15 does more than raise VDC14 and SYSVDD as it starts: it hands the 1.3 V supply from its LDO to its
  * DC-DC, sets a handful of analog registers and the SYSVDD drive bit, then VDC14 7 and SYSVDD 15. The sequence
  * as Melodee read it out of FM-1_015 (keremimo/melodee BUILDING.md, "The stock supply setup"; their 1.3.6 and
  * later apply it in every build, and run both cores by default since). Written here from that description.
  * At the levels alone, with the LDO still feeding the core, some units read SRAM wrong with both cores busy:
  * single bit flips, a return address popped as 0x03xxxxxx (Melodee's 03801494, Album's 030063F4).
+ * fm1-base does most of it at every start since 33cb407 (fm1_power_stock: the handover, registers 1, 5, 7, 8, the
+ * levels). So the handover here runs only if the DC-DC is still off, and what is left is the rest of Melodee's list
+ * (register 6's bit 3, the SYSVDD drive bit, VDDIOW, register 0x17's bit 5) and the read-back: two cores only on a
+ * supply that reads as stock leaves it.
  * Two departures, both only to avoid a dip on a warm start (the levels already up): register 6 is never written
- * below its current level, and register 5 goes straight to VDDIOM 4 (stock writes 0x40 first, VDDIOM 0 for a moment).
+ * below its current level, and register 5 keeps VDDIOM 4 (stock writes 0x40 first, VDDIOM 0 for a moment).
  * Interrupts off, core 1 held. 1: done and read back as stock leaves it; 0: a transfer timed out or a field did
  * not take (core 1 then stays off). */
 static uint8_t fm1_supply_regs[4];           /* registers 0, 5, 6, 9 as read back after */
@@ -27,15 +31,17 @@ static int fm1__supply_field(uint32_t reg, uint32_t sh, uint32_t w, uint32_t v)
 static int fm1_supply_stock(void)
 {
     uint32_t t = fm1_p33_timeouts, lvl;
-    if (!fm1__supply_field(0x00u, 2, 1, 1))  /* LDO13 on, */
-        return 0;
-    fm1_delay_us(30);
-    if (!fm1__supply_field(0x00u, 3, 1, 1))  /* DCDC13 on, */
-        return 0;
-    fm1_delay_us(30);
-    if (!fm1__supply_field(0x00u, 2, 1, 0))  /* LDO13 off: the DC-DC carries it */
-        return 0;
-    fm1_delay_us(30);
+    if ((fm1_p33_read(0x00u) & 0x0Cu) != 0x08u) {    /* (fm1-base has done it already: then left alone) */
+        if (fm1_p33_timeouts != t || !fm1__supply_field(0x00u, 2, 1, 1))  /* LDO13 on, */
+            return 0;
+        fm1_delay_us(1000);
+        if (!fm1__supply_field(0x00u, 3, 1, 1))  /* DCDC13 on, */
+            return 0;
+        fm1_delay_us(1000);
+        if (!fm1__supply_field(0x00u, 2, 1, 0))  /* LDO13 off: the DC-DC carries it */
+            return 0;
+        fm1_delay_us(1000);
+    }
     lvl = fm1_vdc14();
     if (fm1_p33_timeouts != t)
         return 0;

@@ -1,20 +1,33 @@
 # Album's second core: what happened, what others found, where it stands
 
-Written 2026-10-29, after a night of testing on Josh's FM-1 (orange, 360 MHz). It's for whoever picks this up
-next: Josh, Claude, or another model.
+Written 2026-10-29, after a night of testing on Josh's FM-1 (orange, 360 MHz). Updated 2026-11-11, when Album moved
+to fm1-base's second core. It's for whoever picks this up next: Josh, Claude, or another model.
 
 ## Where it stands
 
 - **One core is the default and is stable.** Two cores are opt-in: hold OCT+ on the boot screen. OCT- goes
   back to one core.
-- **On Josh's unit the second core starts and runs.** It reported 12 voices and rendered audio. Then it
-  crashes within seconds to minutes with a single flipped bit in memory. The latest crash: the main core
-  popped a return address of `030063F4` where `020063F4` was stored, in `lcd_sync`, and the PC guard
-  (DBG `0x1000`) stopped it.
-- **Latest build (untested on hardware):** M-VAVE's full supply setup at boot (`album/cpu1/supply.h`), core 2's
-  register setup restored, the bus-trap fixes, the deferred start after Bluetooth, and clearer failure messages.
+- **Since 2026-11-11 Album uses fm1-base's second core** (`cpu2 = true`, `cpu2_fallback = true` in
+  `album/fm1.toml`). That is felucca-bsp's `chip/fm1_cpu1.h`: Melodee's start, its check word on every job, and
+  its fault path. Album's own `cpu1/cpu1.c` and `entry.S` are gone.
+  - The second core now starts in `app_init`, at power-on, before the audio, the timers and Bluetooth. Melodee,
+    X0X and LOOM-8 start it there. Album's old start came after Bluetooth, with the audio running; nobody else
+    has tested a late start.
+  - So OCT+ saves the choice and restarts the FM-1.
+  - A failure doesn't restart: the core is held, its half of that block is dropped, the setting goes back to
+    one core, and the screen says why (the manual lists the messages).
+  - **Untested on hardware as of this writing.**
+- **With the old start, on Josh's unit, the second core started and ran.** It reported 12 voices and rendered
+  audio. Then it crashed within seconds to minutes with a single flipped bit in memory. The last crash: the main
+  core popped a return address of `030063F4` where `020063F4` was stored, in `lcd_sync`, and the PC guard
+  (DBG `0x1000`) stopped it. That was before the full supply setup, which was never tried on hardware.
+- **The supply:** fm1-base 33cb407 does most of M-VAVE's setup at every start (`fm1_power_stock`). `album/supply.h`
+  adds the rest of Melodee's list when two cores are asked for, and reads it back.
+- **One open risk:** the second core now idles through Bluetooth's calibration at power-on. With the old code,
+  before the supply setup, that crashed once a boot (the table below). LOOM-8 runs this way on fm1-base. If the
+  boot screen says CRASHED WITH TWO right after choosing two cores, this is the first suspect.
 
-## What the crash screens told us, in order
+## What the crash screens told us, in order (the old start)
 
 | Screen | Meaning | Fix |
 |---|---|---|
@@ -48,7 +61,7 @@ The same thing, on some units. Their measurements and fixes:
     doesn't prove dual-core works at 360 MHz.
   - Their maintainer warns against going above stock voltages.
 - **fm1-base** (Album's platform) raises VDC14 to 7 and SYSVDD to 15, but does not do the handover or the other
-  registers. Album now does them itself, in `album/cpu1/supply.h`.
+  registers (as of 2026-10-29; since 33cb407 it does most of them). Album does the rest in `album/supply.h`.
 - **The 320 MHz probe** ([curist/fm1-clk320-probe](https://github.com/curist/fm1-clk320-probe)):
   - On a unit where every 360 MHz run failed, 320 MHz (JieLi's rated maximum) with no voltage change ran a
     30-minute soak with 0 bad reads.
@@ -64,25 +77,31 @@ The same thing, on some units. Their measurements and fixes:
 
 ## Next steps, cheapest first
 
-1. **Test the stock supply build.**
-   - Hold OCT+ and play hard with the screen busy.
-   - If the boot screen says SUPPLY NOT SET, the sequence didn't read back as stock leaves it. Core 2 stays
-     off, and the register values are in `fm1_supply_regs`.
-2. **If it still flips bits, keep core 2 idle while the LCD DMA runs.**
-   - Core 0 renders those blocks alone.
-   - If the crashes stop, screen load is the trigger.
+1. **Test this build.**
+   - Hold OCT+ on the boot screen, let it restart, and play hard with the screen busy and Bluetooth on.
+   - Note what the screen says if it gives up, and hold EDIT for the stack reading.
+   - A crash screen: photograph it. The addresses go in `album/tools/crash-addresses.txt` for CI to name.
+2. **If it says CRASHED WITH TWO at boot, try with Bluetooth off** (hold REC three seconds, then choose two cores
+   again). If that runs, the calibration is the trigger, and Bluetooth has to start before the second core or not
+   at all with two.
 3. **If it still flips bits, try 320 MHz while two cores run.**
-   - Port the probe's switch (MIT).
-   - Risk of UBOOT on some units, so make it opt-in and power-cycle after install.
-4. **Otherwise, accept it.**
-   - Like Felucca and Melodee: two cores where the unit allows, one core and a clear message where it doesn't.
-   - Album already does this.
+   - M-VAVE's own V16 boot loader and m-bootloader start the chip at 320 MHz; fm1-base sets it back to 360
+     (`fm1_clock_stock`). On one unit where every 360 MHz run failed, the probe's 30-minute soak at 320 passed.
+   - The cheap way: the system clock's source 2 instead of 6 (`CLK_SYS_CON`, felucca-bsp `chip/fm1_clock.h`). The
+     peripherals' clock then falls from 60 to 53 MHz, so the TRS MIDI rate, the LCD's SPI and the 10 kHz tick need
+     checking. The probe's way retunes the PLL and the flash's clock too.
+   - Risk: Melodee's retune to 320 put some units into UBOOT behind a black screen. Make it opt-in and
+     power-cycle after install.
+   - Everything gets about 11 % slower, so twelve voices may not all fit.
+4. **Otherwise, accept it.** Like Felucca and Melodee: two cores where the unit allows, one core and a clear
+   message where it doesn't. Album already does this.
 
 ## Files
 
-- `album/cpu1/cpu1.c`: the start, the job loop, the bar, the trace, the failure messages
-- `album/cpu1/entry.S`: the core 1 entry stub and its stacks
-- `album/cpu1/supply.h`: M-VAVE's supply setup
-- `album/app.c` `c1_radio`: start after Bluetooth, hold through later starts
+- `album/fm1.toml`: `cpu2`, `cpu2_fallback`
+- `album/app.c`: `c2_job` (the second core's half), `app_render` (hand over, wait, check), `app_init` (the supply,
+  then the start), `c2_watch` (a failure said and saved; the restart after OCT+)
+- `album/supply.h`: the rest of M-VAVE's supply setup, read back
+- `base/bsp/chip/fm1_cpu1.h`, `base/device/cpu2.c`: the second core itself
 - `album/tools/addr2sym.py`, `crash-addresses.txt`, `crash-disasm.txt`: crash screen to function names in CI
   (notice "Crash addresses"); `sym NAME` in `crash-disasm.txt` dumps one function

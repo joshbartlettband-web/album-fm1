@@ -17,12 +17,7 @@
 #define APP_BLE_AT_BOOT (!album_ble_off())
 int album_ble_off(void);
 
-/* the second core: started at boot unless the last session's ended badly (cpu1.c); APP_CSTART holds it first thing
- * after a reset, APP_FAULT gives it up when anything crashes */
 #ifndef PLAT_HOST
-#define APP_CSTART
-void app_cstart(void);
-#define APP_FAULT
 #define APP_SPLASH                       /* the first screen: the boot photo and ALBUM 01 (the intro's first frame) */
 void app_splash(void);
 #endif

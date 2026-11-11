@@ -282,16 +282,32 @@ Album plays on one of the chip's two cores, with eight voices. The boot screen s
 (the most since you pressed EDIT) and V (voices sounding). Near 100 the FM-1 starts dropping a voice to keep up.
 
 **Two cores (experimental).** The second core can take half the voices, for twelve. On some FM-1s it works; on
-others, with both cores busy, the chip now and then reads its memory back wrong, and then it crashes. Other FM-1
-firmwares (Melodee, Jangada, X0X, Felucca) have found the same: it depends on the unit. To try it, hold OCT+ on the
-boot screen for a second and a half: TWO CORES, 12 VOICES, or TWO CORES FAILED and why. Album remembers it. Hold
-OCT- there the same way for ONE CORE. A short press of OCT+ or OCT- on the boot screen still changes the octave.
+others, with both cores busy, the chip now and then reads its memory back wrong. Other FM-1 firmwares (Melodee,
+Jangada, X0X, Felucca) have found the same: it depends on the unit.
 
-With two cores on, Album first sets the FM-1's power supply up the way M-VAVE's own firmware does (as Melodee found),
-and starts the second core only after Bluetooth has started. If the second core crashes, stalls or gets a result
-wrong, Album goes back to one core and remembers that; the boot screen then says ONE CORE and why (CRASHED, STALLED,
-NO ANSWER). After a crash it shows for ten seconds how far the second core got: CORE 2 CRASHED, then STEP 1 OF 7 to
-STEP 7 OF 7 (while starting) or RUNNING, BLOCK and a number (after that many blocks of sound).
+To try it, hold OCT+ on the boot screen for a second and a half. The screen says TWO CORES, RESTARTING, and the FM-1
+restarts: the second core only starts at power-on, before the sound and Bluetooth, which is the start that works in
+the firmwares that run two cores. The boot screen then says TWO CORES, 12 VOICES. Album remembers the choice. Hold
+OCT- on the boot screen the same way for ONE CORE; that needs no restart. A short press of OCT+ or OCT- on the boot
+screen still changes the octave.
+
+With two cores on, hold EDIT: a second line shows TWO CORES and STACK, how much of its 2816 bytes of stack the second
+core has used at most.
+
+If the second core fails, Album drops its half of that moment's sound, goes on with one core and eight voices, and
+puts the setting back to one core. The screen says ONE CORE and why:
+
+- CORE 2 MISREAD: it read a job wrong, and didn't run it.
+- CORE 2 LATE: a job took more than 8 ms.
+- CORE 2 CRASHED: it faulted.
+- CORE 2 NO ANSWER: it didn't start.
+- CORE 2 BAD RESULTS: what it made wasn't sound, three times.
+- CRASHED WITH TWO: the FM-1 itself crashed while two cores ran. The boot screen says this after the restart.
+- SUPPLY NOT SET: the power supply didn't read back the way M-VAVE's own firmware leaves it, so the second core
+  wasn't started.
+
+After any of these, the second core stays off until the FM-1 is switched off. To try again, hold OCT+ on the boot
+screen.
 
 ## 11. Troubleshooting
 

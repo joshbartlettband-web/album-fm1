@@ -14,17 +14,48 @@
 #include "engine.h"
 #include "photos.h"
 
+/* The second core: fm1-base's (fm1.toml cpu2: plat_cpu2_*, on felucca-bsp's chip/fm1_cpu1.h, which is Melodee's
+ * start, its check word on every job and its fault path). It takes half of the voices and the reverse reverb
+ * (eng_voices_b) while this core does the other half, inside the audio interrupt.
+ *
+ * It starts in app_init and nowhere else: at power-on, before the audio, the timers and Bluetooth. That is the
+ * start the FM-1 firmwares that run two cores use (Melodee, X0X, LOOM-8). Album's own start (cpu1/cpu1.c, until
+ * 0.1.63) came after Bluetooth's, with the audio running, and on the FM-1 it was tried on a bit flipped in memory
+ * within minutes. So choosing two cores on the boot screen saves the choice and restarts the FM-1.
+ *
+ * With cpu2_fallback a failure does not restart: the core is held, its half of that block dropped, and it stays
+ * off until power-off (fm1-base's bar). Album then puts the setting back to one core and says why. */
+enum { C2_RUNS, C2_MISREAD, C2_LATE, C2_BARRED, C2_FAULT, C2_SILENT,   /* (1..5: plat_cpu2_gave_up's) */
+       C2_OFF, C2_SUPPLY, C2_RESULTS, C2_CRASH };
+static uint8_t c2_why = C2_OFF;          /* why one core, for the screen */
+static volatile uint8_t c2_lost;         /* the render: 1 it was given up, 2 its results were not numbers three times */
+static uint8_t c2_faults;
+static uint32_t c2_restart_at;           /* two cores chosen: the restart, once the screen has said so */
 #ifndef PLAT_HOST
-#include "cpu1/supply.h"
-#include "cpu1/cpu1.c"
-#else
-static uint8_t c1_on;
-
-static int c1_kick(void) { return 0; }
-static int c1_join(void) { return 1; }
-static int c1_start(void) { return 0; }
-static int c1_report(char *a, char *b) { (void)a; (void)b; return 0; }
+#include "supply.h"
 #endif
+
+static void c2_job(uint32_t arg)         /* on the second core */
+{
+    (void)arg;
+    eng_voices_b();
+}
+
+static const char *c2_text(void)         /* the screen's second line */
+{
+    switch (c2_why) {
+    case C2_RUNS: return "12 VOICES";
+    case C2_MISREAD: return "CORE 2 MISREAD";
+    case C2_LATE: return "CORE 2 LATE";
+    case C2_FAULT: return "CORE 2 CRASHED";
+    case C2_SILENT: return "CORE 2 NO ANSWER";
+    case C2_SUPPLY: return "SUPPLY NOT SET";
+    case C2_RESULTS: return "CORE 2 BAD RESULTS";
+    case C2_BARRED:
+    case C2_CRASH: return "CRASHED WITH TWO";
+    default: return "8 VOICES";
+    }
+}
 
 static const char *const KNOB_NAME[NKNOB] = {"GLIDE", "SWELL", "TONE", "BLUR", "FUZZ", "FUZZ LOW", "FUZZ MID", "FUZZ HIGH",
                                              "JET", "ECHO", "DRIVE", "CHORUS"};
@@ -177,9 +208,17 @@ void app_render(int32_t *lr, uint32_t n, uint32_t master_q12)
     midi_in();
     gain_now += (gain - gain_now) * 0.5f;    /* MASTER eases over a few blocks: no step */
     eng_begin(n);
-    if (c1_kick()) {                     /* core 1 takes its half while core 0 does this one */
+    if (plat_cpu2_on() && plat_cpu2_run(c2_job, 0)) {   /* the second core takes its half while this one works */
         eng_voices_a();
-        c1_join();
+        if (plat_cpu2_wait() != 0) {     /* it was given up (a misread, a fault, late): its half is dropped */
+            eng_drop_b();
+            eng_voice_cap(8);
+            c2_lost = 1;                 /* (app_frame says so) */
+        } else if (!eng_b_sane()) {      /* done, but not numbers: dropped, and after three it is stopped */
+            eng_drop_b();
+            if (++c2_faults >= 3u && !c2_lost)
+                c2_lost = 2;
+        }
     } else {
         eng_voices_a();
         eng_voices_b();
@@ -207,10 +246,8 @@ static void voices_back(uint32_t now)    /* a shed voice back after each two cal
     int cap, top = (int)shed_top;
     if (!shed_top)
         return;
-#ifndef PLAT_HOST
-    if (!c1_on && top > 8)               /* (one core since: eight is its whole) */
+    if (!plat_cpu2_on() && top > 8)      /* (one core since: eight is its whole) */
         top = 8;
-#endif
     cap = eng_voice_cap(0);
     if (cap >= top)
         shed_top = 0;
@@ -239,24 +276,30 @@ void app_init(void)
     eng_fuzz_on(!set.fuzz_off);
     eng_beat_var(set.beat_var);
     eng_bass(set.bass);
-#ifndef PLAT_HOST
-    /* one core unless asked: the second core's start hung a cold boot on hardware (a crash, then a restart on one
-     * core). OCT+ held through the boot screen tries two cores and remembers it; OCT- held puts it back to one
-     * (cores_hold, app_frame: the panel is not read yet this early) */
-    if (set.two_cores && c1_bar.magic == C1_BAR_MAGIC && c1_bar.barred
-        && (c1_bar.why == C1_WHY_CRASH || c1_bar.why == C1_WHY_NOSTART)) {
-        set.two_cores = 0;               /* it crashed (or would not start) with two: one from now on, kept */
+    /* one core unless asked: OCT+ held through the boot screen chooses two (saved, then a restart), OCT- held one */
+    eng_voice_cap(8);
+    c2_why = C2_OFF;
+    if (set.two_cores && plat_cpu2_barred()) {   /* the last start crashed with two: one from now on, kept */
+        set.two_cores = 0;
         plat_store_save(OBJ_SETTINGS, &set, sizeof set);
-        c1_said_why = (uint8_t)c1_bar.why;   /* (the boot screen says why) */
+        c2_why = C2_CRASH;
     }
-    if (set.two_cores && !set.one_core) {
-        c1_wait = 1;                     /* started from app_frame, once Bluetooth's start is over (c1_radio) */
-        eng_voice_cap(8);
-    } else {
-        c1_why = c1_said_why ? c1_said_why : C1_WHY_OFF;
-        eng_voice_cap(8);                /* one core: eight voices */
-    }
+    if (set.two_cores) {
+#ifndef PLAT_HOST
+        uint32_t f = irq_save();         /* the rest of M-VAVE's supply setup first, read back (supply.h) */
+        fm1_supply_ok = (uint8_t)fm1_supply_stock();
+        irq_restore(f);
+        if (!fm1_supply_ok)
+            c2_why = C2_SUPPLY;
+        else
 #endif
+        if (plat_cpu2_set(1) == 0) {
+            c2_why = C2_RUNS;
+            eng_voice_cap((int)ENG_VOICES);
+        } else {                         /* no answer, or one core after a failed start (then no reason is set) */
+            c2_why = plat_cpu2_gave_up() ? (uint8_t)plat_cpu2_gave_up() : C2_CRASH;
+        }
+    }
 }
 
 /* ------------------------------------------------------------------ photo --- */
@@ -1517,6 +1560,13 @@ static void overlay(uint32_t y0, uint32_t now)
         int_text((int32_t)eng_voices_on(), n);
         text_cat(t, n);
         text_ol(10, 8, &FONT_XS, t, RGB(255, 236, 220));
+        if (plat_cpu2_on()) {            /* two cores: the second's stack at its deepest, of 2816 bytes */
+            t[0] = 0;
+            text_cat(t, "TWO CORES  STACK ");
+            int_text((int32_t)plat_cpu2_stack(), n);
+            text_cat(t, n);
+            text_ol(10, 20, &FONT_XS, t, RGB(255, 236, 220));
+        }
     }
     if (y0 == 0 && FM1B_BLE_CENTRAL && plat_ble_device() == BLE_DEV_READY && now >= ui.msg_until)
         cv_text(206, 6, &FONT_XS, "LINK", RGB(255, 140, 120));
@@ -1602,29 +1652,35 @@ void app_ui_init(void)
 #endif
 }
 
-#ifndef PLAT_HOST
-/* Bluetooth's start and the second core: the radio's calibration draws ~500 ms of high current, during which
- * what is read from the flash can come back wrong (radio.c, radio_quiet). With core 1 running through it, every
- * power-on crashed once, core 0 waiting inside the radio's start (shim_delay_us; the screen of the crash itself
- * garbled), and the restart after it, with Bluetooth skipped, ran fine. So core 1 starts after the radio's start,
- * and is held (not given up) through any later one. */
-static void c1_radio(void)
+/* the second core given up in the render (c2_lost), or two cores just chosen (c2_restart_at) */
+static void c2_watch(uint32_t now)
 {
-    if (radio_quiet && c1_on) {
-        uint32_t f = irq_save();         /* (the render must not ask a held core for its half) */
-        c1_on = 0;
-        c1_hold();
-        irq_restore(f);
-        c1_bus_back();
+    if (c2_why == C2_RUNS && !plat_cpu2_on() && !c2_lost)
+        c2_lost = 1;                     /* (given up between jobs: it misread or faulted while idle) */
+    if (c2_lost) {
+        uint8_t how = c2_lost;
+        if (how == 2u)
+            plat_cpu2_set(0);            /* (from the main loop: no job outstanding) */
+        c2_why = how == 2u ? C2_RESULTS : (uint8_t)plat_cpu2_gave_up();
+        c2_lost = 0;
         eng_voice_cap(8);
-        c1_wait = 1;
-    } else if (c1_wait && !radio_quiet) {
-        c1_wait = 0;
-        if (set.two_cores && !set.one_core)
-            c1_start();
+        set.two_cores = 0;               /* remembered: OCT+ on the boot screen tries again */
+        plat_store_save(OBJ_SETTINGS, &set, sizeof set);
+        app_say("ONE CORE", c2_text());
+        ui.msg_until = now + 6000u;
     }
-}
+#ifndef PLAT_HOST
+    if (c2_restart_at && (int32_t)(now - c2_restart_at) >= 0) {   /* as fm1-base's plat_restart: not a failed start */
+        app_panic();
+        fm1_audio_stop();
+        usb_detach();
+        fm1_delay_ms(30);
+        bootguard.pending = 0;
+        radio_clean_exit();
+        fm1_reboot();
+    }
 #endif
+}
 
 void app_frame(void)
 {
@@ -1633,8 +1689,8 @@ void app_frame(void)
     static uint32_t last_ms;
     static uint8_t had_msg, had_knob, had_link, had_beat;
     uint8_t link = (uint8_t)(FM1B_BLE_CENTRAL && plat_ble_device() == BLE_DEV_READY);
+    c2_watch(now);
 #ifndef PLAT_HOST
-    c1_radio();
     if (radio_quiet) {                   /* Bluetooth's first second: what is read from the flash can come back wrong
                                           * (radio.c), and the screen is the most of it (two photos decompressed, 30
                                           * frames a second in the intro). It holds, as the sound does; the keys and
@@ -1730,43 +1786,35 @@ void app_frame(void)
         ui.oct_used = 1;
         set.two_cores = (uint8_t)two;
         plat_store_save(OBJ_SETTINGS, &set, sizeof set);
+        if (two && !plat_cpu2_on()) {
 #ifndef PLAT_HOST
-        if (two && !c1_on) {
-            c1_supply();                 /* (M-VAVE's supply setup, once: only for two cores) */
-            c1_unbar();
-            if (radio_quiet)
-                c1_wait = 1;             /* (Bluetooth still starting: c1_radio starts it after) */
-            else
-                c1_start();
-        } else if (!two) {
-            c1_wait = 0;
-            if (c1_on)
-                c1_retire(C1_WHY_OFF);
-        }
-        if (two && c1_wait)
-            app_say("TWO CORES", "STARTING");
-        else
-            app_say(two ? (c1_on ? "TWO CORES" : "TWO CORES FAILED") : "ONE CORE",
-                    two ? (c1_on ? "12 VOICES" : c1_fail_text()) : "8 VOICES");
+            fm1_cpu1_bar.barred = 0;     /* a deliberate try: an earlier verdict is set aside (the bar is in .noinit,
+                                          * which the power switch does not always clear) */
+            c2_restart_at = now + 1500u; /* it starts only at power-on (above): the screen says so, then a restart */
+            app_say("TWO CORES", "RESTARTING");
 #else
-        app_say(two ? "TWO CORES" : "ONE CORE", two ? "12 VOICES" : "8 VOICES");
+            plat_cpu2_set(1);            /* (the simulator: at once) */
+            c2_why = C2_RUNS;
+            eng_voice_cap((int)ENG_VOICES);
+            app_say("TWO CORES", "12 VOICES");
 #endif
+        } else if (two) {
+            app_say("TWO CORES", "12 VOICES");
+        } else {
+            c2_restart_at = 0;
+            if (plat_cpu2_on())
+                plat_cpu2_set(0);
+            c2_why = C2_OFF;
+            eng_voice_cap(8);
+            app_say("ONE CORE", "8 VOICES");
+        }
         ui.msg_until = now + 3000u;
     }
     {   /* every boot: which it is running on, a moment after the photo comes up */
         static uint8_t said_cores;
-        if (intro.on && !said_cores && now - intro.t0 >= 600u && now >= ui.msg_until
-#ifndef PLAT_HOST
-            && !c1_wait                  /* (settled: after Bluetooth's start) */
-#endif
-            ) {
-#ifndef PLAT_HOST
-            int two = c1_on;
-            const char *why = two ? "12 VOICES" : c1_fail_text();   /* (one core after a failure: which) */
-#else
-            int two = set.two_cores;
-            const char *why = two ? "12 VOICES" : "8 VOICES";
-#endif
+        if (intro.on && !said_cores && now - intro.t0 >= 600u && now >= ui.msg_until) {
+            int two = plat_cpu2_on();
+            const char *why = c2_text(); /* (one core after a failure: which) */
             said_cores = 1;
             app_say(two ? "TWO CORES" : "ONE CORE", why);
             ui.msg_until = now + 3000u;
@@ -1774,14 +1822,8 @@ void app_frame(void)
     }
     if (intro.on) {                      /* the intro: about 30 frames a second, then the patch's name */
         if (now - intro.t0 >= INTRO_GONE) {
-            char a[24], b[24];
             intro.on = 0;
-            if (c1_report(a, b)) {       /* a crash with two cores: where it was, for ten seconds */
-                app_say(a, b);
-                ui.msg_until = now + 10000u;
-            } else {
-                show_patch();
-            }
+            show_patch();
             ph.dirty = 1;
         } else if (now - ph.last_draw >= 33u) {
             ph.dirty = 1;
@@ -1817,7 +1859,7 @@ int app_expect(const char *what, int *got)
     else if (!strcmp(what, "level"))     /* the output level, in hundredths */
         *got = (int)(eng_level() * 100.0f);
     else if (!strcmp(what, "c1"))
-        *got = c1_on;
+        *got = plat_cpu2_on();
 #ifdef PHOTO_BOOT
     else if (!strcmp(what, "intro"))     /* the intro still running */
         *got = intro.on;
