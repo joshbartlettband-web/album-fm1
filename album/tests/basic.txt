@@ -60,7 +60,7 @@ reboot
 wait 800
 expect patch 1
 expect octave 1
-# MIDI in: a program change, a knob, a note; nothing of it goes back out (two linked FM-1s would echo forever)
+# MIDI in: a program change, a knob, a note; nothing of it goes back out (a computer that echoes would loop forever)
 out
 midi C0 03 00
 wait 60
@@ -74,14 +74,12 @@ expect voices 1
 expect_no_out USB 90 40 64
 expect_no_out USB C0 03 00
 midi 80 40 00
-# a linked FM-1 hears the keys too
-wait 1500
-ble connect
+# the keys go out over USB
 wait 1500
 out
 key w6 down 90
 wait 30
-expect_out BLE 90 4C 5A
+expect_out USB 90 4C 5A
 key w6 up
 wait 1500
 # ALGORITHM is the fifth knob, FUZZ (FLAME, the patch here, starts it at 128), sent as CC 20; FX takes the fuzz out and back

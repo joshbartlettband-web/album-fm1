@@ -1,8 +1,9 @@
 # Album: the boot screen's controls, and ACCORDION's three rows (album_host boot.txt OUTDIR)
 listen
 wait 2000
-said ONE CORE
+said TWO CORES
 expect intro 1
+expect c1 1
 # a short OCT+ on the boot screen: the octave, on release
 tap OCT+
 wait 60
@@ -10,7 +11,17 @@ expect octave 1
 tap OCT-
 wait 60
 expect octave 0
-# OCT+ held a second and a half on the boot screen: two cores (saved); the octave left alone
+# OCT- held a second and a half on the boot screen: one core (saved); the octave left alone
+listen
+press OCT-
+wait 1700
+release OCT-
+wait 60
+said ONE CORE
+expect two_cores 0
+expect c1 0
+expect octave 0
+# and OCT+ held: two again (saved; the FM-1 restarts for it, the simulator starts it at once)
 listen
 press OCT+
 wait 1700
@@ -18,14 +29,18 @@ release OCT+
 wait 60
 said TWO CORES
 expect two_cores 1
+expect c1 1
 expect octave 0
-# and OCT- held: one again
-press OCT-
-wait 1700
-release OCT-
-wait 60
-said ONE CORE
-expect two_cores 0
+# a chord on two cores: the second takes its half of every block, and stays on (its results are numbers)
+key w4 down 100
+key w6 down 100
+key w8 down 100
+wait 600
+expect c1 1
+key w4 up
+key w6 up
+key w8 up
+wait 200
 wait 6000
 expect intro 0
 # ACCORDION (ARP once from CHORDS), in C: the bottom row open and low, the middle the patch's, the top extended

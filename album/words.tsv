@@ -17,7 +17,6 @@ SWELL	swell
 TONE	tone
 BLUR	blur
 HOLD	hold
-LINK	link
 CHORDS	chords
 KEY	key
 BEAT LEVEL	beat level
@@ -58,7 +57,6 @@ BARS	bars
 BAR	bar
 PLAYING	playing
 STOPPED	stopped
-BLUETOOTH	bluetooth
 LOOKING	looking
 LATE BLOOM	late bloom
 JET	jet

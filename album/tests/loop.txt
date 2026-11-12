@@ -111,23 +111,6 @@ expect loop_bars 8
 tap PLAY
 wait 30
 expect loop 4
-# REC held a second: the link, the loop left as it is; three seconds: Bluetooth off, and again, on
-listen
-press REC
-wait 1100
-said LINK LOOKING
-expect loop 4
-wait 2000
-said BLUETOOTH OFF
-release REC
-wait 40
-expect loop 4
-press REC
-wait 3100
-said BLUETOOTH ON
-release REC
-wait 40
-expect loop 4
 # the first chord a little early, in the last beat of a bar: it counts for the next bar, and recording goes on
 tap REC
 wait 2451

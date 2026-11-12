@@ -15,11 +15,10 @@ photographs they came from, and each sound moves its photo as you play. Edition 
 4. The patches
 5. Chord mode
 6. The beat
-7. Two FM-1s as one
-8. Saving
-9. MIDI
-10. One core, and the second
-11. Troubleshooting
+7. Saving
+8. MIDI
+9. The two cores
+10. Troubleshooting
 
 ---
 
@@ -54,8 +53,8 @@ shows at the top for a moment when you choose it, and a knob's value shows at th
 | PLAY | The chord loop: stop it, or start it again from its first bar (lit green while it plays). While recording: close the loop (section 5) |
 | OCT- / OCT+ | The octave, two down to two up |
 | HOME | This patch's knobs, its effects and its tempo back where it starts |
-| SAVE | Keep everything (lit when something changed): section 8 |
-| REC | Record a chord loop (section 5). Held a second: link to another FM-1 (section 7). Held three seconds: Bluetooth off or on |
+| SAVE | Keep everything (lit when something changed): section 7 |
+| REC | Record a chord loop (section 5) |
 | MASTER | Volume |
 
 ![Red Door with a chord held: the photo wavers sideways with the pitch](img/screen-playing.png "Playing: the photo moves with the sound")
@@ -186,9 +185,9 @@ keys you pressed, not their notes, so another patch voices it its own way, and S
 keeps time with the beat, or runs on its own with the beat off, and starting the beat starts it from its first bar
 again. It isn't saved: it lasts until you switch off.
 
-**Voices.** There are twelve (eight on one core: section 10). A chord takes three to six. When a new note needs a
+**Voices.** There are twelve (eight on one core: section 9). A chord takes three to six. When a new note needs a
 voice and none is free, it takes the quietest voice that is fading out, whose sound is mostly in the reverb by then;
-then a voice that only HOLD (a sustain pedal, section 9) is keeping; only then the oldest note still under a
+then a voice that only HOLD (a sustain pedal, section 8) is keeping; only then the oldest note still under a
 finger. A key never stays silent.
 If the FM-1 ever has to drop a voice or two to keep up, they come back a couple of seconds after the load eases.
 
@@ -229,36 +228,19 @@ BUSY (a hat on every sixteenth and ghost notes on the snare).
 playing (a slash chord's bass note; in NOTES, the last note), down where a bass guitar sits, sliding a little from
 note to note. It plays only while the beat runs, at the beat's level.
 
-## 7. Two FM-1s as one
-
-Two FM-1s running Album link over Bluetooth and play as one: the keys, the knobs and the patch go from each to the
-other. In chord mode the chord's notes go across, so the other FM-1 plays the same chord. A chord loop stays on the
-FM-1 that recorded it: the other hears its chords while you record them, not when they loop. Start the beat on one
-and the other starts its own beat in time with it, following its clock, and stops when it stops. Each unit drifts in pitch on its own, so together they detune against each other like two guitars.
-
-1. On one FM-1, hold REC for a second: LINK LOOKING.
-2. Turn ALGORITHM to choose the other FM-1 when its name shows.
-3. Hold REC for a second again: LINKING, then LINK CONNECTED. LINK stays at the top right while the link is up.
-
-A computer or a tablet can connect over Bluetooth MIDI too, at the same time. Album links to a stock FM-1 as well
-(it plays its own sounds); that has not been tried on hardware yet.
-
-Bluetooth adds a little delay. The slow-swelling patches hide it well.
-
-## 8. Saving
+## 7. Saving
 
 SAVE keeps the patch you are on, every patch's knobs and tempo, the octave, chord mode and its key, whether the fuzz is in, and the beat's
 level. They come back at the next power-on. Saving
 stops the sound for a moment (the flash is written), so save between phrases. The chord loop is not saved.
 
-## 9. MIDI
+## 8. MIDI
 
-In over USB, Bluetooth and the TRS jack; out over USB and Bluetooth.
+In over USB and the TRS jack; out over USB. Album has no Bluetooth.
 
 **The channel.** Hold EDIT and turn SELECT: ALL, then 1 to 16. On ALL (the start), Album hears every channel and sends
 on 1. On a number, it hears only that channel and sends everything on it: the keys and chords, the knobs, the
 patch. Clock, start and stop have no channel, so the beat keeps time with anything. It is saved with SAVE.
-Two linked FM-1s need the same channel, or ALL.
 
 | Message | In | Out |
 | --- | --- | --- |
@@ -270,35 +252,44 @@ Two linked FM-1s need the same channel, or ALL.
 | CC 21 | The beat's level | SEQ held and SELECT |
 | CC 22, 23, 24 | The fuzz's low, mid, high | FX held and K1, K2, K3 |
 | CC 25, 26, 27, 28 | Jet, Echo, Drive, Chorus | EDIT held and K1, K2, K3, K4 |
-| Clock, start, stop | The beat follows another FM-1 or a computer | While this FM-1's beat runs |
+| Clock, start, stop | The beat follows a computer or a sequencer | While this FM-1's beat runs |
 
-Nothing received is sent back out, so two linked FM-1s never echo.
+Nothing received is sent back out, so a computer that passes MIDI through never makes a loop.
 
-## 10. One core, and the second
+## 9. The two cores
 
-Album plays on one of the chip's two cores, with eight voices. The boot screen says which: ONE CORE, 8 VOICES.
+The FM-1's chip has two cores, and Album plays on both: the second takes half the voices and the reverse reverb, for
+twelve voices. The boot screen says so: TWO CORES, 12 VOICES. The second core starts at power-on, before the sound.
 
 **How hard it is working.** Hold EDIT: the top of the screen shows CPU (the sound's share of the time, now), PEAK
-(the most since you pressed EDIT) and V (voices sounding). Near 100 the FM-1 starts dropping a voice to keep up.
+(the most since you pressed EDIT) and V (voices sounding). Near 100 the FM-1 starts dropping a voice to keep up. With
+two cores on, a second line shows TWO CORES and STACK, how much of its 2816 bytes of stack the second core has used
+at most.
 
-**Two cores (experimental).** The second core can take half the voices, for twelve. On some FM-1s it works; on
-others, with both cores busy, the chip now and then reads its memory back wrong, and then it crashes. Other FM-1
-firmwares (Melodee, Jangada, X0X, Felucca) have found the same: it depends on the unit. To try it, hold OCT+ on the
-boot screen for a second and a half: TWO CORES, 12 VOICES, or TWO CORES FAILED and why. Album remembers it. Hold
-OCT- there the same way for ONE CORE. A short press of OCT+ or OCT- on the boot screen still changes the octave.
+**When the second core fails.** On some FM-1s, with both cores busy, the chip now and then reads its memory back
+wrong. Other FM-1 firmwares (Melodee, Jangada, X0X, Felucca) have found the same: it depends on the unit. If it
+happens, Album drops the second core's half of that moment's sound, goes on with one core and eight voices, and
+remembers that. The screen says ONE CORE and why:
 
-With two cores on, Album first sets the FM-1's power supply up the way M-VAVE's own firmware does (as Melodee found),
-and starts the second core only after Bluetooth has started. If the second core crashes, stalls or gets a result
-wrong, Album goes back to one core and remembers that; the boot screen then says ONE CORE and why (CRASHED, STALLED,
-NO ANSWER). After a crash it shows for ten seconds how far the second core got: CORE 2 CRASHED, then STEP 1 OF 7 to
-STEP 7 OF 7 (while starting) or RUNNING, BLOCK and a number (after that many blocks of sound).
+- CORE 2 MISREAD: it read a job wrong, and didn't run it.
+- CORE 2 LATE: a job took more than 8 ms.
+- CORE 2 CRASHED: it faulted.
+- CORE 2 NO ANSWER: it didn't start.
+- CORE 2 BAD RESULTS: what it made wasn't sound, three times.
+- CRASHED WITH TWO: the FM-1 itself crashed while two cores ran. The boot screen says this after the restart.
 
-## 11. Troubleshooting
+From then on Album starts on one core: ONE CORE, 8 VOICES.
+
+**Choosing.** Hold OCT- on the boot screen for a second and a half for ONE CORE. Hold OCT+ there the same way to go
+back to two: the screen says TWO CORES, RESTARTING, and the FM-1 restarts, because the second core only starts at
+power-on. Album remembers the choice. A short press of OCT+ or OCT- on the boot screen still changes the octave.
+
+## 10. Troubleshooting
 
 - **No sound:** turn MASTER up. Check that Blur is not all the way up on a patch with a long Swell and a note just
   played: the reverse reverb takes its time.
-- **The FM-1 restarted after a crash:** tell us what you were doing, with a photo of the crash screen. With two
-  cores on, Album goes back to one.
+- **The FM-1 restarted after a crash:** tell us what you were doing, with a photo of the crash screen. If two
+  cores were on, Album goes back to one (section 9).
 - **A crash screen right after installing:** switching from another firmware can leave its last crash behind for
   Album to show once. Turn the FM-1 off and on.
 - **Back to M-VAVE's firmware:** the install page has a button for it.
