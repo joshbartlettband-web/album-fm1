@@ -18,20 +18,19 @@ time they ring, heard through a reverse reverb.
   Valentine's records and voiced differently by every patch, spelled out on the photo in a colour for each note.
   ACCORDION: chords on the black keys (three rows, three voicings), a tune on the white
 - A beat for every patch (SEQ), soft and muffled, partly into the reverse reverb, at its own level; fills (ENV), sparse
-  or busy (LFO), and an auto bass on the kick (GLO); tempo on SEQ and ALGORITHM; two linked FM-1s keep time together
-  over MIDI clock
-- MIDI in and out over USB, Bluetooth and TRS (in), on any channel (EDIT and SELECT)
-- One core, eight voices; the second core as an experiment, for units that can run it
-- Two FM-1s linked over Bluetooth MIDI play as one
+  or busy (LFO), and an auto bass on the kick (GLO); tempo on SEQ and ALGORITHM; it follows MIDI clock
+- MIDI in and out over USB, and in over TRS, on any channel (EDIT and SELECT). No Bluetooth
+- One core, eight voices; two cores and twelve voices as an experiment, for units that can run it (OCT+ on the
+  boot screen)
 - The manual: [album/docs/MANUAL.md](album/docs/MANUAL.md)
 
 ## Layout
 
 | Path | What |
 | --- | --- |
-| `album/` | the firmware: `app.c` (the screen, the controls, MIDI), `dsp/` (the sound), `supply.h` (the power supply setup for two cores), `photos/` (the photos and their palettes), `tests/` (simulator scripts), `shelf/` (patches kept for later, not built), `site/` (the front page; `more/` holds the cards for Josh's other projects, which `tools/more.py` adds to it) |
+| `album/` | the firmware: `app.c` (the screen, the controls, MIDI), `dsp/` (the sound), `photos/` (the photos and their palettes), `tests/` (simulator scripts), `shelf/` (patches kept for later, not built), `site/` (the front page; `more/` holds the cards for Josh's other projects, which `tools/more.py` adds to it) |
 | `base/` | [fm1-base](https://github.com/charlesvestal/fm1-base) (submodule): the platform, the simulator, the build and install tools |
-| `.github/workflows/` | the build: tests, the firmware with and without Bluetooth, the site (GitHub Pages); tags make attested releases |
+| `.github/workflows/` | the build: tests, the firmware, the site (GitHub Pages); tags make attested releases |
 
 ## Build
 
@@ -45,8 +44,8 @@ python3 album/tools/harmonics.py tc                           # the tour, listen
 python3 base/tools/build.py album                             # the firmware (JieLi's toolchain: base/tools/get_toolchain.sh)
 ```
 
-Bluetooth needs JieLi's AC79 SDK (`$AC79_SDK`); `--no-ble` builds without it. Every push to `main` builds both on
-GitHub and publishes the install page.
+The package needs three files of JieLi's AC79 SDK (`$AC79_SDK`). Every push to `main` builds it on GitHub and
+publishes the install page.
 
 ## Adding a patch and its photo
 
@@ -59,5 +58,5 @@ Each patch gets its own photo, and the sound comes from what is in it.
 ## Licence
 
 MIT (`LICENSE`). Built on
-fm1-base by Charles Vestal and felucca-bsp by Leo Kuroshita, Hügelton Instruments (both MPL-2.0, in `base/`). The Bluetooth build links JieLi's AC79 SDK libraries (Apache-2.0, not in this repository). The photos are
+fm1-base by Charles Vestal and felucca-bsp by Leo Kuroshita, Hügelton Instruments (both MPL-2.0, in `base/`). The photos are
 by u/Alive-Stable-7254. M-VAVE and FM-1 are trademarks of their owners; Album is not affiliated with M-VAVE.

@@ -105,7 +105,7 @@ tap SEQ
 wait 60
 expect beat 0
 expect_out USB FC 00 00
-# a linked FM-1's clock: its start, then 48 ticks are eight sixteenths, then its stop
+# MIDI clock in: its start, then 48 ticks are eight sixteenths, then its stop
 midi FA 00 00
 clock 48 21
 wait 30

@@ -10,8 +10,7 @@ gen = ["tools/photos.py --out {gen}/photos.h"]
 cpu2 = true                            # the second core, fm1-base's (Melodee's start): two cores are opt-in (OCT+)
 cpu2_fallback = true                   # a failure of it: one core until power-off, not a restart
 mmio_skip = ["dsp/"]                   # the sound's numbers (random seeds, thresholds) are not addresses
-ble = true                             # Bluetooth MIDI (--no-ble builds without it)
-ble_central = true                     # and the FM-1 links to another FM-1 (any Bluetooth MIDI device)
+ble = false                            # no Bluetooth: MIDI is USB, and TRS in. The radio's start is out of the second core's way
 # the site (base/tools/make_site.py)
 tagline = "Album 01. A few deep sounds and the photo each came from."
 repo = "https://github.com/joshbartlettband-web/album-fm1"

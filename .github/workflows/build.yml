@@ -1,4 +1,4 @@
-# Album: every push to main is tested in the simulator, built for the FM-1 (with and without Bluetooth), and its
+# Album: every push to main is tested in the simulator, built for the FM-1, and its
 # site (install page, emulator, manual) published to GitHub Pages. Tags v* make an attested release instead
 # (release.yml).
 name: build
@@ -66,7 +66,7 @@ jobs:
           TC="$(ls -d ~/.jieli/jieli-linux-toolchains-* | sort | tail -1)"
           ln -sfn "$(basename "$TC")" ~/.jieli/toolchain
           echo "JIELI_TOOLCHAIN=$HOME/.jieli/toolchain" >> "$GITHUB_ENV"
-      - name: JieLi AC79 SDK (gitee.com, a fixed tag; Bluetooth's libraries)
+      - name: JieLi AC79 SDK (gitee.com, a fixed tag; the three files a package needs, no Bluetooth)
         run: |
           for i in 1 2 3; do
             git clone --depth 1 --branch AC79NN_SDK_V1.2.1_2023-12-13 \
@@ -78,12 +78,10 @@ jobs:
           echo "AC79_SDK=$HOME/fw-AC79_AIoT_SDK" >> "$GITHUB_ENV"
       - name: Version
         run: echo "V=0.1.${{ github.run_number }}" >> "$GITHUB_ENV"
-      - name: Firmware, with Bluetooth and without
+      - name: Firmware
         run: |
           set -o pipefail
-          build() { python3 base/tools/build.py album "$@" 2>&1 | tee -a build.log; }
-          if ! { build --release "$V" && cp album/build/album.elf album/build/album-ble.elf; } \
-             || ! build --release "$V" --no-ble; then
+          if ! python3 base/tools/build.py album --release "$V" 2>&1 | tee build.log; then
             # the build's last lines as one annotation: readable from `gh run view` and the run's summary
             msg="$(tail -n 80 build.log | sed -e 's/%/%25/g' -e 's/\r/%0D/g' | sed ':a;N;$!ba;s/\n/%0A/g')"
             echo "::error title=FM-1 build failed::${msg}"
@@ -99,21 +97,21 @@ jobs:
           if-no-files-found: error
       - name: A crash screen's addresses, as functions (album/tools/crash-addresses.txt)
         run: |
-          msg="$(python3 album/tools/addr2sym.py album/build/album-ble.elf $(cat album/tools/crash-addresses.txt) 2>&1 \
+          msg="$(python3 album/tools/addr2sym.py album/build/album.elf $(cat album/tools/crash-addresses.txt) 2>&1 \
                  | sed -e 's/%/%25/g' | sed ':a;N;$!ba;s/\n/%0A/g')"
-          echo "::notice title=Crash addresses (with Bluetooth)::${msg}"
+          echo "::notice title=Crash addresses::${msg}"
           if [ -f album/tools/crash-disasm.txt ]; then   # (start and stop addresses: the code around a crash)
             while read -r a b; do       # (one window a line)
               [ -n "$a" ] || continue
               if [ "$a" = sym ]; then   # ("sym NAME": one function, wherever it runs from)
-                se="$(python3 -c "import sys; sys.path.insert(0,'album/tools'); import addr2sym; print(next('%08x' % v for v, z, n in addr2sym.symbols('album/build/album-ble.elf') if n == '$b'))")"
+                se="$(python3 -c "import sys; sys.path.insert(0,'album/tools'); import addr2sym; print(next('%08x' % v for v, z, n in addr2sym.symbols('album/build/album.elf') if n == '$b'))")"
                 raw="$( \
                        echo "sym $b at $se"; \
                        "$JIELI_TOOLCHAIN/common/bin/objdump" -D -j .ram_text -mcpu=r3 --start-address=0x$se \
-                       --stop-address=$(printf '0x%x' $((0x$se + 0xC0))) album/build/album-ble.elf 2>&1 || true)"
+                       --stop-address=$(printf '0x%x' $((0x$se + 0xC0))) album/build/album.elf 2>&1 || true)"
               else
                 raw="$("$JIELI_TOOLCHAIN/common/bin/objdump" -d -mcpu=r3 --start-address=0x$a --stop-address=0x$b \
-                       album/build/album-ble.elf 2>&1)"
+                       album/build/album.elf 2>&1)"
               fi
               dis="$(printf '%s\n' "$raw" | grep -vE "^ *[0-9a-f]{7}:    [0-9a-f]{2}( [0-9a-f]{2})? +<" | head -n 200 \
                      | sed -e 's/%/%25/g' | sed ':a;N;$!ba;s/\n/%0A/g')"
@@ -124,7 +122,6 @@ jobs:
         with:
           name: album-${{ env.V }}-symbols   # the ELFs, for reading a crash screen's addresses
           path: |
-            album/build/album-ble.elf
             album/build/album.elf
       - uses: mymindstorm/setup-emsdk@v14
       - name: The emulator and the site

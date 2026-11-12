@@ -16,5 +16,4 @@ jobs:
         git submodule update --init --recursive
         python3 -m pip install numpy
         python3 base/tools/build.py album --release "${GITHUB_REF_NAME#v}"
-        python3 base/tools/build.py album --release "${GITHUB_REF_NAME#v}" --no-ble
       packages: album/build/*.fwsc

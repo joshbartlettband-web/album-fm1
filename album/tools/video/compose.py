@@ -27,7 +27,7 @@ KX0, KX1, KY0, KY1 = 40, 1040, 1104, 1262       # the keys: F3 .. G5, 16 white
 WHITE_PC = {0, 2, 4, 5, 7, 9, 11}
 END = ["Twelve patches, each from its own photo", "Chord mode, ACCORDION and NOTES, in any key",
        "Four effects: jet, echo, drive, chorus", "A beat for every patch, a bass, fills", "A chord loop to play over",
-       "Two FM-1s linked over Bluetooth play as one", "MIDI in and out: USB, Bluetooth, TRS"]
+       "MIDI in and out over USB, and in over TRS"]
 
 
 def note_rgb(pc):                               # app.c note_rgb: round the colour wheel by semitone
