@@ -21,11 +21,12 @@
  * It starts in app_init and nowhere else: at power-on, before the audio and the timers. That is the
  * start the FM-1 firmwares that run two cores use (Melodee, X0X, LOOM-8, and Album 02 on the same FM-1). Album's
  * own start (cpu1/cpu1.c, until 0.1.63) came after Bluetooth's start, with the audio running, and on the FM-1 it
- * was tried on a bit flipped in memory within minutes. So choosing two cores on the boot screen saves the choice
- * and restarts the FM-1.
+ * was tried on a bit flipped in memory within minutes. So going back to two cores on the boot screen saves the
+ * choice and restarts the FM-1.
  *
- * With cpu2_fallback a failure does not restart: the core is held, its half of that block dropped, and it stays
- * off until power-off (fm1-base's bar). Album then puts the setting back to one core and says why. */
+ * Two cores are the default (as in Album 02), one the fallback. With cpu2_fallback a failure does not restart: the
+ * core is held, its half of that block dropped, and it stays off until power-off (fm1-base's bar). Album then saves
+ * one core and says why; OCT+ on the boot screen tries two again. */
 enum { C2_RUNS, C2_MISREAD, C2_LATE, C2_BARRED, C2_FAULT, C2_SILENT,   /* (1..5: plat_cpu2_gave_up's) */
        C2_OFF, C2_RESULTS, C2_CRASH };
 static uint8_t c2_why = C2_OFF;          /* why one core, for the screen */
@@ -74,7 +75,7 @@ typedef struct {
     uint8_t patch;
     int8_t octave;                       /* -2 .. +2 */
     uint8_t ble_off;                     /* (Bluetooth off, until 0.1.63: kept so saved settings still read) */
-    uint8_t one_core;                    /* the second core switched off by hand (OCT- held at power-on) */
+    uint8_t one_core;                    /* one core: chosen (OCT- held on the boot screen), or after the second failed */
     uint8_t knob[MAX_PATCH][NKNOB];      /* each patch's knobs, 0..255 */
     uint8_t key;                         /* chord mode's key, 0 (C) .. 11 */
     uint8_t chords;                      /* chord mode on */
@@ -82,7 +83,7 @@ typedef struct {
     uint8_t fuzz_off;                    /* FX: the fuzz bypassed */
     uint8_t beat_var;                    /* LFO: 0 sparse, 1 as written, 2 busy */
     uint8_t bass;                        /* GLO: the auto bass on */
-    uint8_t two_cores;                   /* OCT+ held at power-on: the second core tried (until then, one) */
+    uint8_t two_cores;                   /* (until 0.1.63, when two cores were opt-in: kept so saved settings read) */
     uint8_t midi_ch;                     /* 0: every channel in, 1 out; 1..16: that one only, in and out */
     int8_t tempo[MAX_PATCH];             /* each patch's tempo, BPM from its beat's own */
 } settings_t;
@@ -272,15 +273,16 @@ void app_init(void)
     eng_fuzz_on(!set.fuzz_off);
     eng_beat_var(set.beat_var);
     eng_bass(set.bass);
-    /* one core unless asked: OCT+ held through the boot screen chooses two (saved, then a restart), OCT- held one */
+    /* two cores unless one was chosen (OCT- held through the boot screen) or the second failed; OCT+ held there
+     * chooses two again (saved, then a restart) */
     eng_voice_cap(8);
     c2_why = C2_OFF;
-    if (set.two_cores && plat_cpu2_barred()) {   /* the last start crashed with two: one from now on, kept */
-        set.two_cores = 0;
+    if (!set.one_core && plat_cpu2_barred()) {   /* the last start crashed with two: one from now on, kept */
+        set.one_core = 1;
         plat_store_save(OBJ_SETTINGS, &set, sizeof set);
         c2_why = C2_CRASH;
     }
-    if (set.two_cores) {                 /* (the supply is fm1-base's: M-VAVE's levels and its DC-DC, at every start) */
+    if (!set.one_core) {                 /* (the supply is fm1-base's: M-VAVE's levels and its DC-DC, at every start) */
         if (plat_cpu2_set(1) == 0) {
             c2_why = C2_RUNS;
             eng_voice_cap((int)ENG_VOICES);
@@ -1602,7 +1604,7 @@ static void c2_watch(uint32_t now)
         c2_why = how == 2u ? C2_RESULTS : (uint8_t)plat_cpu2_gave_up();
         c2_lost = 0;
         eng_voice_cap(8);
-        set.two_cores = 0;               /* remembered: OCT+ on the boot screen tries again */
+        set.one_core = 1;                /* remembered: OCT+ on the boot screen tries again */
         plat_store_save(OBJ_SETTINGS, &set, sizeof set);
         app_say("ONE CORE", c2_text());
         ui.msg_until = now + 6000u;
@@ -1699,7 +1701,7 @@ void app_frame(void)
     if (intro.on && !ui.oct_used && (ui.btn >> B_OCTUP & 1u || ui.btn >> B_OCTDN & 1u) && now - ui.oct_t >= 1500u) {
         int two = (ui.btn >> B_OCTUP & 1u) != 0;   /* held a second and a half on the boot screen: the cores */
         ui.oct_used = 1;
-        set.two_cores = (uint8_t)two;
+        set.one_core = (uint8_t)!two;
         plat_store_save(OBJ_SETTINGS, &set, sizeof set);
         if (two && !plat_cpu2_on()) {
 #ifndef PLAT_HOST
@@ -1794,7 +1796,7 @@ int app_expect(const char *what, int *got)
     else if (!strcmp(what, "bass"))
         *got = set.bass;
     else if (!strcmp(what, "two_cores"))
-        *got = set.two_cores;
+        *got = !set.one_core;
     else if (!strcmp(what, "midi_ch"))
         *got = set.midi_ch;
     else if (!strcmp(what, "beat_level"))

@@ -17,7 +17,7 @@ photographs they came from, and each sound moves its photo as you play. Edition 
 6. The beat
 7. Saving
 8. MIDI
-9. One core, and the second
+9. The two cores
 10. Troubleshooting
 
 ---
@@ -256,28 +256,20 @@ patch. Clock, start and stop have no channel, so the beat keeps time with anythi
 
 Nothing received is sent back out, so a computer that passes MIDI through never makes a loop.
 
-## 9. One core, and the second
+## 9. The two cores
 
-Album plays on one of the chip's two cores, with eight voices. The boot screen says which: ONE CORE, 8 VOICES.
+The FM-1's chip has two cores, and Album plays on both: the second takes half the voices and the reverse reverb, for
+twelve voices. The boot screen says so: TWO CORES, 12 VOICES. The second core starts at power-on, before the sound.
 
 **How hard it is working.** Hold EDIT: the top of the screen shows CPU (the sound's share of the time, now), PEAK
-(the most since you pressed EDIT) and V (voices sounding). Near 100 the FM-1 starts dropping a voice to keep up.
+(the most since you pressed EDIT) and V (voices sounding). Near 100 the FM-1 starts dropping a voice to keep up. With
+two cores on, a second line shows TWO CORES and STACK, how much of its 2816 bytes of stack the second core has used
+at most.
 
-**Two cores (experimental).** The second core can take half the voices, for twelve. On some FM-1s it works; on
-others, with both cores busy, the chip now and then reads its memory back wrong. Other FM-1 firmwares (Melodee,
-Jangada, X0X, Felucca) have found the same: it depends on the unit.
-
-To try it, hold OCT+ on the boot screen for a second and a half. The screen says TWO CORES, RESTARTING, and the FM-1
-restarts: the second core only starts at power-on, before the sound, which is the start that works in
-the firmwares that run two cores. The boot screen then says TWO CORES, 12 VOICES. Album remembers the choice. Hold
-OCT- on the boot screen the same way for ONE CORE; that needs no restart. A short press of OCT+ or OCT- on the boot
-screen still changes the octave.
-
-With two cores on, hold EDIT: a second line shows TWO CORES and STACK, how much of its 2816 bytes of stack the second
-core has used at most.
-
-If the second core fails, Album drops its half of that moment's sound, goes on with one core and eight voices, and
-puts the setting back to one core. The screen says ONE CORE and why:
+**When the second core fails.** On some FM-1s, with both cores busy, the chip now and then reads its memory back
+wrong. Other FM-1 firmwares (Melodee, Jangada, X0X, Felucca) have found the same: it depends on the unit. If it
+happens, Album drops the second core's half of that moment's sound, goes on with one core and eight voices, and
+remembers that. The screen says ONE CORE and why:
 
 - CORE 2 MISREAD: it read a job wrong, and didn't run it.
 - CORE 2 LATE: a job took more than 8 ms.
@@ -286,15 +278,18 @@ puts the setting back to one core. The screen says ONE CORE and why:
 - CORE 2 BAD RESULTS: what it made wasn't sound, three times.
 - CRASHED WITH TWO: the FM-1 itself crashed while two cores ran. The boot screen says this after the restart.
 
-After any of these, the second core stays off until the FM-1 is switched off. To try again, hold OCT+ on the boot
-screen.
+From then on Album starts on one core: ONE CORE, 8 VOICES.
+
+**Choosing.** Hold OCT- on the boot screen for a second and a half for ONE CORE. Hold OCT+ there the same way to go
+back to two: the screen says TWO CORES, RESTARTING, and the FM-1 restarts, because the second core only starts at
+power-on. Album remembers the choice. A short press of OCT+ or OCT- on the boot screen still changes the octave.
 
 ## 10. Troubleshooting
 
 - **No sound:** turn MASTER up. Check that Blur is not all the way up on a patch with a long Swell and a note just
   played: the reverse reverb takes its time.
-- **The FM-1 restarted after a crash:** tell us what you were doing, with a photo of the crash screen. With two
-  cores on, Album goes back to one.
+- **The FM-1 restarted after a crash:** tell us what you were doing, with a photo of the crash screen. If two
+  cores were on, Album goes back to one (section 9).
 - **A crash screen right after installing:** switching from another firmware can leave its last crash behind for
   Album to show once. Turn the FM-1 off and on.
 - **Back to M-VAVE's firmware:** the install page has a button for it.

@@ -6,8 +6,10 @@ model.
 
 ## Where it stands
 
-- **One core is the default and is stable.** Two cores are opt-in: hold OCT+ on the boot screen. OCT- goes
-  back to one core.
+- **Two cores are the default since 2026-11-12** (Josh's call, as in Album 02), one core the fallback. OCT- on
+  the boot screen chooses one core; OCT+ goes back to two, with a restart. The setting is `one_core` in the saved
+  settings, which was 0 in every earlier install, so existing installs get two cores without losing their settings.
+- **One core is stable.** It ran every build until 0.1.63.
 - **Album 02 runs two cores on Josh's FM-1.** It uses fm1-base's second core (`cpu2 = true`,
   `cpu2_fallback = true`), started in `app_init`, and has no Bluetooth (`ble = false`). Album 01 now does the same:
   - `album/fm1.toml` has the same three settings. Album's own `cpu1/cpu1.c`, `entry.S` and `supply.h` are gone.
@@ -15,9 +17,9 @@ model.
     fault path.
   - It starts in `app_init`, at power-on, before the audio and the timers. Melodee, X0X and LOOM-8 start it
     there. Album's old start came after Bluetooth, with the audio running; nobody else has tested a late start.
-  - So OCT+ saves the choice and restarts the FM-1.
-  - A failure doesn't restart: the core is held, its half of that block is dropped, the setting goes back to
-    one core, and the screen says why (the manual lists the messages).
+  - So OCT+ (from one core) saves the choice and restarts the FM-1.
+  - A failure doesn't restart: the core is held, its half of that block is dropped, one core is saved, and the
+    screen says why (the manual lists the messages).
   - **Album 01's build of this is untested on hardware as of this writing.**
 - **With the old start, on Josh's unit, the second core started and ran.** It reported 12 voices and rendered
   audio. Then it crashed within seconds to minutes with a single flipped bit in memory. The last crash: the main
@@ -79,11 +81,11 @@ The same thing, on some units. Their measurements and fixes:
 ## Next steps, cheapest first
 
 1. **Test this build.**
-   - Hold OCT+ on the boot screen, let it restart, and play hard with the screen busy.
+   - The boot screen should say TWO CORES, 12 VOICES. Play hard with the screen busy.
    - Note what the screen says if it gives up, and hold EDIT for the stack reading.
    - A crash screen: photograph it. The addresses go in `album/tools/crash-addresses.txt` for CI to name.
-2. **If it runs a 30-minute soak, make two cores the default** for new installs, as Album 02 has it, with one core
-   as the fallback.
+2. **Watch the reports.** Two cores are on for everyone now. A unit that misreads falls back to one core by
+   itself; a report of repeated crashes at boot would be the reason to go back to opt-in.
 3. **If it still flips bits, try 320 MHz while two cores run.**
    - M-VAVE's own V16 boot loader and m-bootloader start the chip at 320 MHz; fm1-base sets it back to 360
      (`fm1_clock_stock`). On one unit where every 360 MHz run failed, the probe's 30-minute soak at 320 passed.
