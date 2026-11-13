@@ -40,10 +40,20 @@ static void c2_job(uint32_t arg)         /* on the second core */
     eng_voices_b();
 }
 
-static const char *c2_text(void)         /* the screen's second line */
+static int voices_top(void);             /* (below, after the settings) */
+
+static const char *c2_text(void)         /* the screen's second line: the voices, or why one core */
 {
+    static char v[12];
+    static const char W[] = " VOICES";
+    int n = voices_top(), i = 0, k;
+    if (n >= 10)
+        v[i++] = '1';
+    v[i++] = (char)('0' + n % 10);
+    for (k = 0; W[k]; k++)
+        v[i++] = W[k];
+    v[i] = 0;
     switch (c2_why) {
-    case C2_RUNS: return "12 VOICES";
     case C2_MISREAD: return "CORE 2 MISREAD";
     case C2_LATE: return "CORE 2 LATE";
     case C2_FAULT: return "CORE 2 CRASHED";
@@ -51,7 +61,7 @@ static const char *c2_text(void)         /* the screen's second line */
     case C2_RESULTS: return "CORE 2 BAD RESULTS";
     case C2_BARRED:
     case C2_CRASH: return "CRASHED WITH TWO";
-    default: return "8 VOICES";
+    default: return v;
     }
 }
 
@@ -83,11 +93,22 @@ typedef struct {
     uint8_t fuzz_off;                    /* FX: the fuzz bypassed */
     uint8_t beat_var;                    /* LFO: 0 sparse, 1 as written, 2 busy */
     uint8_t bass;                        /* GLO: the auto bass on */
-    uint8_t two_cores;                   /* (until 0.1.63, when two cores were opt-in: kept so saved settings read) */
+    uint8_t voices;                      /* the most voices, 6 to 12 (EDIT held and OCT+ / OCT-); 0 or 1: eight
+                                          * (until 0.1.63 this byte was two_cores, 0 or 1) */
     uint8_t midi_ch;                     /* 0: every channel in, 1 out; 1..16: that one only, in and out */
     int8_t tempo[MAX_PATCH];             /* each patch's tempo, BPM from its beat's own */
 } settings_t;
 static settings_t set;
+
+/* The most voices. Eight unless chosen (EDIT held and OCT+ / OCT-): on one core that is its whole. On two cores
+ * eight is four a core, about half the work each core can do: on the FM-1 two cores were first tried on, twelve
+ * (the engine's most) crashed after a while, so more than eight is the player's choice. One core: eight at most */
+static int voices_most(void) { return plat_cpu2_on() ? (int)ENG_VOICES : 8; }
+static int voices_top(void)
+{
+    int v = set.voices >= 6u ? (int)set.voices : 8, most = voices_most();
+    return v < most ? v : most;
+}
 static uint8_t set_dirty;
 
 
@@ -105,7 +126,7 @@ static void settings_defaults(void)
     set.fuzz_off = 0;
     set.beat_var = 1;
     set.bass = 0;
-    set.two_cores = 0;
+    set.voices = 0;
     set.midi_ch = 0;
     for (p = 0; p < MAX_PATCH; p++)
         set.tempo[p] = 0;
@@ -209,7 +230,7 @@ void app_render(int32_t *lr, uint32_t n, uint32_t master_q12)
         eng_voices_a();
         if (plat_cpu2_wait() != 0) {     /* it was given up (a misread, a fault, late): its half is dropped */
             eng_drop_b();
-            eng_voice_cap(8);
+            eng_voice_cap(voices_top()); /* (one core now: eight at most) */
             c2_lost = 1;                 /* (app_frame says so) */
         } else if (!eng_b_sane()) {      /* done, but not numbers: dropped, and after three it is stopped */
             eng_drop_b();
@@ -243,8 +264,8 @@ static void voices_back(uint32_t now)    /* a shed voice back after each two cal
     int cap, top = (int)shed_top;
     if (!shed_top)
         return;
-    if (!plat_cpu2_on() && top > 8)      /* (one core since: eight is its whole) */
-        top = 8;
+    if (top > voices_top())              /* (one core since, or fewer chosen) */
+        top = voices_top();
     cap = eng_voice_cap(0);
     if (cap >= top)
         shed_top = 0;
@@ -262,7 +283,7 @@ void app_init(void)
     if (plat_store_load(OBJ_SETTINGS, &set, sizeof set) != (int)sizeof set || set.magic != SET_MAGIC
         || set.octave < -2 || set.octave > 2 || set.ble_off > 1u || set.one_core > 1u || set.key > 11u
         || set.chords > 2u || set.beat_level > 100u || set.fuzz_off > 1u || set.beat_var > 2u || set.bass > 1u
-        || set.two_cores > 1u || set.midi_ch > 16u)
+        || set.voices > ENG_VOICES || set.midi_ch > 16u)
         settings_defaults();
     if (set.patch >= (uint32_t)eng_patch_count())
         set.patch = 0;
@@ -275,7 +296,6 @@ void app_init(void)
     eng_bass(set.bass);
     /* two cores unless one was chosen (OCT- held through the boot screen) or the second failed; OCT+ held there
      * chooses two again (saved, then a restart) */
-    eng_voice_cap(8);
     c2_why = C2_OFF;
     if (!set.one_core && plat_cpu2_barred()) {   /* the last start crashed with two: one from now on, kept */
         set.one_core = 1;
@@ -285,11 +305,11 @@ void app_init(void)
     if (!set.one_core) {                 /* (the supply is fm1-base's: M-VAVE's levels and its DC-DC, at every start) */
         if (plat_cpu2_set(1) == 0) {
             c2_why = C2_RUNS;
-            eng_voice_cap((int)ENG_VOICES);
         } else {                         /* no answer, or one core after a failed start (then no reason is set) */
             c2_why = plat_cpu2_gave_up() ? (uint8_t)plat_cpu2_gave_up() : C2_CRASH;
         }
     }
+    eng_voice_cap(voices_top());
 }
 
 /* ------------------------------------------------------------------ photo --- */
@@ -1215,6 +1235,19 @@ static void knob_set(uint32_t k, int32_t v255, int send)
     }
 }
 
+static void voices_step(int d)           /* EDIT held and OCT+ / OCT-: the most voices, six to twelve (eight on one core) */
+{
+    int v = voices_top() + d, most = voices_most();
+    char t[12];
+    v = v < 6 ? 6 : v > most ? most : v;
+    set.voices = (uint8_t)v;
+    set_dirty = 1;
+    shed_top = 0;                        /* (a voice shed under load: forgotten, this is the new most) */
+    eng_voice_cap(v);
+    int_text(v, t);
+    app_say("VOICES", t);
+}
+
 static void octave_step(int32_t d)
 {
     int32_t o = clamp(set.octave + d, -2, 2);
@@ -1263,7 +1296,10 @@ static void input(void)
         switch (k) {
         case B_OCTDN:                    /* (on the boot screen: on its release, unless held to choose the cores) */
         case B_OCTUP:
-            if (ui.boot_screen) {
+            if (btn >> B_EDIT & 1u) {    /* EDIT held: the most voices */
+                voices_step(k == B_OCTUP ? 1 : -1);
+                ui.oct_used = 1;         /* (on the boot screen: not the octave, not the cores) */
+            } else if (ui.boot_screen) {
                 ui.oct_t = plat_ms();
                 ui.oct_used = 0;
             } else {
@@ -1501,6 +1537,9 @@ static void overlay(uint32_t y0, uint32_t now)
         text_cat(t, "%  V ");
         int_text((int32_t)eng_voices_on(), n);
         text_cat(t, n);
+        text_cat(t, "/");                /* (of the most there may be: EDIT held and OCT+ / OCT-) */
+        int_text((int32_t)eng_voice_cap(0), n);
+        text_cat(t, n);
         text_ol(10, 8, &FONT_XS, t, RGB(255, 236, 220));
         if (plat_cpu2_on()) {            /* two cores: the second's stack at its deepest, of 2816 bytes */
             t[0] = 0;
@@ -1603,7 +1642,7 @@ static void c2_watch(uint32_t now)
             plat_cpu2_set(0);            /* (from the main loop: no job outstanding) */
         c2_why = how == 2u ? C2_RESULTS : (uint8_t)plat_cpu2_gave_up();
         c2_lost = 0;
-        eng_voice_cap(8);
+        eng_voice_cap(voices_top());
         set.one_core = 1;                /* remembered: OCT+ on the boot screen tries again */
         plat_store_save(OBJ_SETTINGS, &set, sizeof set);
         app_say("ONE CORE", c2_text());
@@ -1712,18 +1751,18 @@ void app_frame(void)
 #else
             plat_cpu2_set(1);            /* (the simulator: at once) */
             c2_why = C2_RUNS;
-            eng_voice_cap((int)ENG_VOICES);
-            app_say("TWO CORES", "12 VOICES");
+            eng_voice_cap(voices_top());
+            app_say("TWO CORES", c2_text());
 #endif
         } else if (two) {
-            app_say("TWO CORES", "12 VOICES");
+            app_say("TWO CORES", c2_text());
         } else {
             c2_restart_at = 0;
             if (plat_cpu2_on())
                 plat_cpu2_set(0);
             c2_why = C2_OFF;
-            eng_voice_cap(8);
-            app_say("ONE CORE", "8 VOICES");
+            eng_voice_cap(voices_top());
+            app_say("ONE CORE", c2_text());
         }
         ui.msg_until = now + 3000u;
     }
@@ -1795,6 +1834,8 @@ int app_expect(const char *what, int *got)
         *got = set.beat_var;
     else if (!strcmp(what, "bass"))
         *got = set.bass;
+    else if (!strcmp(what, "voice_cap"))
+        *got = eng_voice_cap(0);
     else if (!strcmp(what, "two_cores"))
         *got = !set.one_core;
     else if (!strcmp(what, "midi_ch"))

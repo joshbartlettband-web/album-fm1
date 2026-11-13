@@ -20,8 +20,8 @@ time they ring, heard through a reverse reverb.
 - A beat for every patch (SEQ), soft and muffled, partly into the reverse reverb, at its own level; fills (ENV), sparse
   or busy (LFO), and an auto bass on the kick (GLO); tempo on SEQ and ALGORITHM; it follows MIDI clock
 - MIDI in and out over USB, and in over TRS, on any channel (EDIT and SELECT). No Bluetooth
-- Two cores, twelve voices; one core and eight voices takes over on a unit whose second core misbehaves (or
-  OCT- on the boot screen)
+- Two cores, eight voices (six to twelve by choice: EDIT held and OCT+ / OCT-); one core takes over on a unit
+  whose second core misbehaves (or OCT- on the boot screen)
 - The manual: [album/docs/MANUAL.md](album/docs/MANUAL.md)
 
 ## Layout

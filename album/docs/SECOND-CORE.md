@@ -10,6 +10,12 @@ model.
   the boot screen chooses one core; OCT+ goes back to two, with a restart. The setting is `one_core` in the saved
   settings, which was 0 in every earlier install, so existing installs get two cores without losing their settings.
 - **One core is stable.** It ran every build until 0.1.63.
+- **0.1.69 on Josh's FM-1 (2026-11-12): both cores ran, then it crashed after a while.** That build had twelve
+  voices with two cores. No crash screen or message was noted. Since then two cores start with eight voices, four
+  a core, and the most voices is the player's choice (EDIT held and OCT+ / OCT-, six to twelve), so the load can
+  be raised a step at a time on the FM-1 itself. What isn't known yet: whether the crash was the load (the render
+  running out of time), a misread, or something else. The next crash screen, or what the boot screen says after it,
+  decides that.
 - **Album 02 runs two cores on Josh's FM-1.** It uses fm1-base's second core (`cpu2 = true`,
   `cpu2_fallback = true`), started in `app_init`, and has no Bluetooth (`ble = false`). Album 01 now does the same:
   - `album/fm1.toml` has the same three settings. Album's own `cpu1/cpu1.c`, `entry.S` and `supply.h` are gone.
@@ -81,7 +87,8 @@ The same thing, on some units. Their measurements and fixes:
 ## Next steps, cheapest first
 
 1. **Test this build.**
-   - The boot screen should say TWO CORES, 12 VOICES. Play hard with the screen busy.
+   - The boot screen should say TWO CORES, 8 VOICES. Play hard with the screen busy, then raise the voices a
+     step at a time (EDIT held and OCT+) and watch CPU and PEAK.
    - Note what the screen says if it gives up, and hold EDIT for the stack reading.
    - A crash screen: photograph it. The addresses go in `album/tools/crash-addresses.txt` for CI to name.
 2. **Watch the reports.** Two cores are on for everyone now. A unit that misreads falls back to one core by

@@ -49,7 +49,7 @@ shows at the top for a moment when you choose it, and a knob's value shows at th
 | LFO | The beat: SPARSE, AS WRITTEN, BUSY (lit unless as written) |
 | GLO | The auto bass on or off (lit while on) |
 | SEQ | The patch's beat on or off (blinks with it). Held: ALGORITHM sets the tempo, SELECT the beat's level |
-| EDIT | Shows the MIDI channel. Held: K1 to K4 are the four effects, JET, ECHO, DRIVE and CHORUS (section 3), SELECT sets the MIDI channel (section 9), and the top of the screen shows how hard the FM-1 is working (section 10) |
+| EDIT | Shows the MIDI channel. Held: K1 to K4 are the four effects, JET, ECHO, DRIVE and CHORUS (section 3), SELECT sets the MIDI channel (section 8), and the top of the screen shows how hard the FM-1 is working (section 9), and OCT+ and OCT- set the most voices (section 9) |
 | PLAY | The chord loop: stop it, or start it again from its first bar (lit green while it plays). While recording: close the loop (section 5) |
 | OCT- / OCT+ | The octave, two down to two up |
 | HOME | This patch's knobs, its effects and its tempo back where it starts |
@@ -185,7 +185,7 @@ keys you pressed, not their notes, so another patch voices it its own way, and S
 keeps time with the beat, or runs on its own with the beat off, and starting the beat starts it from its first bar
 again. It isn't saved: it lasts until you switch off.
 
-**Voices.** There are twelve (eight on one core: section 9). A chord takes three to six. When a new note needs a
+**Voices.** There are eight, or as many as you choose from six to twelve (section 9). A chord takes three to six. When a new note needs a
 voice and none is free, it takes the quietest voice that is fading out, whose sound is mostly in the reverb by then;
 then a voice that only HOLD (a sustain pedal, section 8) is keeping; only then the oldest note still under a
 finger. A key never stays silent.
@@ -258,13 +258,18 @@ Nothing received is sent back out, so a computer that passes MIDI through never 
 
 ## 9. The two cores
 
-The FM-1's chip has two cores, and Album plays on both: the second takes half the voices and the reverse reverb, for
-twelve voices. The boot screen says so: TWO CORES, 12 VOICES. The second core starts at power-on, before the sound.
+The FM-1's chip has two cores, and Album plays on both: the second takes half the voices and the reverse reverb.
+The boot screen says so: TWO CORES, 8 VOICES. The second core starts at power-on, before the sound.
 
 **How hard it is working.** Hold EDIT: the top of the screen shows CPU (the sound's share of the time, now), PEAK
-(the most since you pressed EDIT) and V (voices sounding). Near 100 the FM-1 starts dropping a voice to keep up. With
-two cores on, a second line shows TWO CORES and STACK, how much of its 2816 bytes of stack the second core has used
-at most.
+(the most since you pressed EDIT) and V (voices sounding, of the most there may be: 5/8). Near 100 the FM-1 starts
+dropping a voice to keep up. With two cores on, a second line shows TWO CORES and STACK, how much of its 2816 bytes
+of stack the second core has used at most.
+
+**The most voices.** Album starts with eight, four on each core, which leaves both cores about half idle. Hold EDIT
+and press OCT+ or OCT- to choose, from six to twelve: the screen says VOICES and the number, and SAVE keeps it.
+More voices load the FM-1 more. On the FM-1 that two cores were first tried on, twelve voices crashed after a
+while, so go up a step at a time and watch CPU and PEAK. On one core the most is eight.
 
 **When the second core fails.** On some FM-1s, with both cores busy, the chip now and then reads its memory back
 wrong. Other FM-1 firmwares (Melodee, Jangada, X0X, Felucca) have found the same: it depends on the unit. If it
@@ -278,7 +283,7 @@ remembers that. The screen says ONE CORE and why:
 - CORE 2 BAD RESULTS: what it made wasn't sound, three times.
 - CRASHED WITH TWO: the FM-1 itself crashed while two cores ran. The boot screen says this after the restart.
 
-From then on Album starts on one core: ONE CORE, 8 VOICES.
+From then on Album starts on one core, with eight voices at most: ONE CORE, 8 VOICES.
 
 **Choosing.** Hold OCT- on the boot screen for a second and a half for ONE CORE. Hold OCT+ there the same way to go
 back to two: the screen says TWO CORES, RESTARTING, and the FM-1 restarts, because the second core only starts at

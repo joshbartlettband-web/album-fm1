@@ -31,6 +31,23 @@ said TWO CORES
 expect two_cores 1
 expect c1 1
 expect octave 0
+# eight voices unless more are chosen; EDIT held and OCT+: nine, then OCT- twice: seven (the octave left alone)
+expect voice_cap 8
+listen
+press EDIT
+tap OCT+
+wait 60
+said VOICES 9
+expect voice_cap 9
+tap OCT-
+tap OCT-
+wait 60
+expect voice_cap 7
+tap OCT+
+release EDIT
+wait 60
+expect voice_cap 8
+expect octave 0
 # a chord on two cores: the second takes its half of every block, and stays on (its results are numbers)
 key w4 down 100
 key w6 down 100
