@@ -28,7 +28,7 @@
  * core is held, its half of that block dropped, and it stays off until power-off (fm1-base's bar). Album then saves
  * one core and says why; OCT+ on the boot screen tries two again. */
 enum { C2_RUNS, C2_MISREAD, C2_LATE, C2_BARRED, C2_FAULT, C2_SILENT,   /* (1..5: plat_cpu2_gave_up's) */
-       C2_OFF, C2_RESULTS, C2_CRASH };
+       C2_OFF, C2_RESULTS, C2_CRASH, C2_BATTERY };
 static uint8_t c2_why = C2_OFF;          /* why one core, for the screen */
 static volatile uint8_t c2_lost;         /* the render: 1 it was given up, 2 its results were not numbers three times */
 static uint8_t c2_faults;
@@ -40,18 +40,29 @@ static void c2_job(uint32_t arg)         /* on the second core */
     eng_voices_b();
 }
 
-static const char *c2_text(void)         /* the screen's second line */
+static int voices_top(void);             /* (below, after the settings) */
+
+static const char *c2_text(void)         /* the screen's second line: the voices, or why one core */
 {
+    static char v[12];
+    static const char W[] = " VOICES";
+    int n = voices_top(), i = 0, k;
+    if (n >= 10)
+        v[i++] = '1';
+    v[i++] = (char)('0' + n % 10);
+    for (k = 0; W[k]; k++)
+        v[i++] = W[k];
+    v[i] = 0;
     switch (c2_why) {
-    case C2_RUNS: return "12 VOICES";
     case C2_MISREAD: return "CORE 2 MISREAD";
     case C2_LATE: return "CORE 2 LATE";
     case C2_FAULT: return "CORE 2 CRASHED";
     case C2_SILENT: return "CORE 2 NO ANSWER";
     case C2_RESULTS: return "CORE 2 BAD RESULTS";
+    case C2_BATTERY: return "BATTERY LOW";
     case C2_BARRED:
     case C2_CRASH: return "CRASHED WITH TWO";
-    default: return "8 VOICES";
+    default: return v;
     }
 }
 
@@ -83,11 +94,22 @@ typedef struct {
     uint8_t fuzz_off;                    /* FX: the fuzz bypassed */
     uint8_t beat_var;                    /* LFO: 0 sparse, 1 as written, 2 busy */
     uint8_t bass;                        /* GLO: the auto bass on */
-    uint8_t two_cores;                   /* (until 0.1.63, when two cores were opt-in: kept so saved settings read) */
+    uint8_t voices;                      /* the most voices, 6 to 12 (EDIT held and OCT+ / OCT-); 0 or 1: eight
+                                          * (until 0.1.63 this byte was two_cores, 0 or 1) */
     uint8_t midi_ch;                     /* 0: every channel in, 1 out; 1..16: that one only, in and out */
     int8_t tempo[MAX_PATCH];             /* each patch's tempo, BPM from its beat's own */
 } settings_t;
 static settings_t set;
+
+/* The most voices. Eight unless chosen (EDIT held and OCT+ / OCT-): on one core that is its whole. On two cores
+ * eight is four a core, about half the work each core can do: on the FM-1 two cores were first tried on, twelve
+ * (the engine's most) crashed after a while, so more than eight is the player's choice. One core: eight at most */
+static int voices_most(void) { return plat_cpu2_on() ? (int)ENG_VOICES : 8; }
+static int voices_top(void)
+{
+    int v = set.voices >= 6u ? (int)set.voices : 8, most = voices_most();
+    return v < most ? v : most;
+}
 static uint8_t set_dirty;
 
 
@@ -105,7 +127,7 @@ static void settings_defaults(void)
     set.fuzz_off = 0;
     set.beat_var = 1;
     set.bass = 0;
-    set.two_cores = 0;
+    set.voices = 0;
     set.midi_ch = 0;
     for (p = 0; p < MAX_PATCH; p++)
         set.tempo[p] = 0;
@@ -209,7 +231,7 @@ void app_render(int32_t *lr, uint32_t n, uint32_t master_q12)
         eng_voices_a();
         if (plat_cpu2_wait() != 0) {     /* it was given up (a misread, a fault, late): its half is dropped */
             eng_drop_b();
-            eng_voice_cap(8);
+            eng_voice_cap(voices_top()); /* (one core now: eight at most) */
             c2_lost = 1;                 /* (app_frame says so) */
         } else if (!eng_b_sane()) {      /* done, but not numbers: dropped, and after three it is stopped */
             eng_drop_b();
@@ -243,8 +265,8 @@ static void voices_back(uint32_t now)    /* a shed voice back after each two cal
     int cap, top = (int)shed_top;
     if (!shed_top)
         return;
-    if (!plat_cpu2_on() && top > 8)      /* (one core since: eight is its whole) */
-        top = 8;
+    if (top > voices_top())              /* (one core since, or fewer chosen) */
+        top = voices_top();
     cap = eng_voice_cap(0);
     if (cap >= top)
         shed_top = 0;
@@ -262,7 +284,7 @@ void app_init(void)
     if (plat_store_load(OBJ_SETTINGS, &set, sizeof set) != (int)sizeof set || set.magic != SET_MAGIC
         || set.octave < -2 || set.octave > 2 || set.ble_off > 1u || set.one_core > 1u || set.key > 11u
         || set.chords > 2u || set.beat_level > 100u || set.fuzz_off > 1u || set.beat_var > 2u || set.bass > 1u
-        || set.two_cores > 1u || set.midi_ch > 16u)
+        || set.voices > ENG_VOICES || set.midi_ch > 16u)
         settings_defaults();
     if (set.patch >= (uint32_t)eng_patch_count())
         set.patch = 0;
@@ -275,7 +297,6 @@ void app_init(void)
     eng_bass(set.bass);
     /* two cores unless one was chosen (OCT- held through the boot screen) or the second failed; OCT+ held there
      * chooses two again (saved, then a restart) */
-    eng_voice_cap(8);
     c2_why = C2_OFF;
     if (!set.one_core && plat_cpu2_barred()) {   /* the last start crashed with two: one from now on, kept */
         set.one_core = 1;
@@ -285,11 +306,11 @@ void app_init(void)
     if (!set.one_core) {                 /* (the supply is fm1-base's: M-VAVE's levels and its DC-DC, at every start) */
         if (plat_cpu2_set(1) == 0) {
             c2_why = C2_RUNS;
-            eng_voice_cap((int)ENG_VOICES);
         } else {                         /* no answer, or one core after a failed start (then no reason is set) */
             c2_why = plat_cpu2_gave_up() ? (uint8_t)plat_cpu2_gave_up() : C2_CRASH;
         }
     }
+    eng_voice_cap(voices_top());
 }
 
 /* ------------------------------------------------------------------ photo --- */
@@ -1215,6 +1236,19 @@ static void knob_set(uint32_t k, int32_t v255, int send)
     }
 }
 
+static void voices_step(int d)           /* EDIT held and OCT+ / OCT-: the most voices, six to twelve (eight on one core) */
+{
+    int v = voices_top() + d, most = voices_most();
+    char t[12];
+    v = v < 6 ? 6 : v > most ? most : v;
+    set.voices = (uint8_t)v;
+    set_dirty = 1;
+    shed_top = 0;                        /* (a voice shed under load: forgotten, this is the new most) */
+    eng_voice_cap(v);
+    int_text(v, t);
+    app_say("VOICES", t);
+}
+
 static void octave_step(int32_t d)
 {
     int32_t o = clamp(set.octave + d, -2, 2);
@@ -1263,7 +1297,10 @@ static void input(void)
         switch (k) {
         case B_OCTDN:                    /* (on the boot screen: on its release, unless held to choose the cores) */
         case B_OCTUP:
-            if (ui.boot_screen) {
+            if (btn >> B_EDIT & 1u) {    /* EDIT held: the most voices */
+                voices_step(k == B_OCTUP ? 1 : -1);
+                ui.oct_used = 1;         /* (on the boot screen: not the octave, not the cores) */
+            } else if (ui.boot_screen) {
                 ui.oct_t = plat_ms();
                 ui.oct_used = 0;
             } else {
@@ -1478,6 +1515,126 @@ static void chord_draw(void)
     }
 }
 
+/* ---------------------------------------------------------------- battery --- */
+/* The battery's charge, from fm1-base's reading of it: ADC channel 3 (the cell through a divider), averaged by the
+ * main loop over about two seconds, in 10-bit counts. The divider and the converter's reference are not published.
+ * Taken as a 1 : 2 divider on a 3.3 V reference, 6.45 mV a count: then the stock firmware's three bar thresholds
+ * (531, 561, 591) fall at 3.43, 3.62 and 3.81 V, where a Li-ion cell's own steps are, and Optimist's reading of the
+ * same assumption shows about 3.87 V on a charged FM-1. Not checked with a meter on an FM-1 yet: BATT_UV_PER_COUNT
+ * is the one number to correct if the percentage reads wrong. Over USB the reading is the charger's, not the cell's,
+ * so the screen says USB instead. */
+#define BATT_UV_PER_COUNT 6452u
+#ifdef PLAT_HOST
+static int32_t host_batt_raw = 620;      /* (the simulator's cell: "battery N" sets it; 620 = 4.0 V) */
+#endif
+static int32_t batt_counts(void)         /* the cell's reading, 0 = none yet */
+{
+#ifdef __EMSCRIPTEN__
+    return 0;                            /* (the browser emulator has no battery) */
+#elif defined(PLAT_HOST)
+    return host_batt_raw;
+#else
+    return batt_raw;                     /* (plat_fm1.c's average, earlier in the unity build) */
+#endif
+}
+
+/* a Li-ion cell's charge from its voltage at rest, straight lines between these points. The FM-1 draws a little
+ * while it plays, so the cell reads a few percent low then */
+static int batt_pct_of(uint32_t mv)
+{
+    static const uint16_t MV[9] = {3400, 3550, 3650, 3720, 3800, 3900, 4000, 4100, 4180};
+    static const uint8_t PC[9] = {0, 5, 15, 30, 50, 65, 80, 92, 100};
+    uint32_t i;
+    if (mv <= MV[0])
+        return 0;
+    for (i = 1; i < 9u; i++)
+        if (mv < MV[i])
+            return PC[i - 1u] + (int)((mv - MV[i - 1u]) * (uint32_t)(PC[i] - PC[i - 1u]) / (uint32_t)(MV[i] - MV[i - 1u]));
+    return 100;
+}
+
+/* what the screen shows: -1 nothing (no reading, or no battery), -2 USB powers it, else 0..100. It moves only when
+ * the charge has moved 3 or more, at most every five seconds: a loud chord sags the cell a little */
+static int batt_shown = -1;
+static uint32_t batt_t;
+static uint8_t batt_warned;              /* the low warnings given on the way down: 1 at 15 %, 2 at 5 % */
+static void batt_watch(uint32_t now)
+{
+    int32_t raw = batt_counts();
+    int lvl = plat_battery(), pct;
+    if (lvl == 4) {                      /* a USB host: power, and the cell charging */
+        if (batt_shown != -2)
+            ph.dirty = 1;
+        batt_shown = -2;
+        batt_warned = 0;
+        return;
+    }
+    if (raw <= 0 || lvl < 0) {
+        batt_shown = -1;
+        return;
+    }
+    pct = batt_pct_of((uint32_t)raw * BATT_UV_PER_COUNT / 1000u);
+    if (batt_shown < 0 || ((pct >= batt_shown + 3 || pct <= batt_shown - 3) && now - batt_t >= 5000u)) {
+        batt_shown = pct;
+        batt_t = now;
+        ph.dirty = 1;
+    }
+    if (batt_shown <= 15 && plat_cpu2_on()) {   /* a low cell: one core for the rest of this session (not saved:
+                                                 * charged and switched on again, two). A sagging supply is what the
+                                                 * second core's misreads need, and two cores draw more from it */
+        plat_cpu2_set(0);                /* (from the main loop: no job outstanding) */
+        c2_why = C2_BATTERY;
+        eng_voice_cap(voices_top());
+        batt_warned = 1;                 /* (this says it: no separate BATTERY LOW) */
+        app_say("ONE CORE", "BATTERY LOW");
+        ui.msg_until = now + 5000u;
+        return;
+    }
+    if (batt_shown >= 25)
+        batt_warned = 0;                 /* (charged since: warn again next time) */
+    else if (batt_shown <= 5 && batt_warned < 2u && now >= ui.msg_until) {
+        batt_warned = 2;
+        app_say("BATTERY 5%", "CHARGE IT");
+        ui.msg_until = now + 5000u;
+    } else if (batt_shown <= 15 && batt_warned < 1u && now >= ui.msg_until) {
+        char t[8];
+        batt_warned = 1;
+        int_text(batt_shown, t);
+        text_cat(t, "%");
+        app_say("BATTERY LOW", t);
+        ui.msg_until = now + 4000u;
+    }
+}
+
+/* the battery at the top right: an outline filled to the charge (red at 15 % and under) and the percentage, or USB */
+static void batt_draw(void)
+{
+    const int32_t x = 213, y = 9, w = 19, h = 10;
+    uint16_t ink = RGB(255, 236, 220), low = RGB(255, 90, 80), c;
+    char t[8];
+    if (batt_shown == -1)
+        return;
+    c = batt_shown >= 0 && batt_shown <= 15 ? low : ink;
+    cv_rect(x - 1, y - 1, w + 2, h + 2, 0);              /* (a dark edge, as text_ol's, against a bright photo) */
+    cv_rect(x + w + 1, y + 2, 3, h - 4, 0);
+    cv_rect(x, y, w, h, c);
+    cv_rect(x + 1, y + 1, w - 2, h - 2, 0);
+    cv_rect(x + w, y + 3, 2, h - 6, c);                  /* the tip */
+    if (batt_shown >= 0) {
+        int32_t f = (w - 4) * batt_shown / 100;
+        if (f < 1 && batt_shown > 0)
+            f = 1;
+        cv_rect(x + 2, y + 2, f, h - 4, c);
+        int_text(batt_shown, t);
+        text_cat(t, "%");
+    } else {
+        cv_rect(x + 7, y + 2, 5, h - 4, c);              /* (USB: a block in the middle, a plug's end) */
+        t[0] = 0;
+        text_cat(t, "USB");
+    }
+    text_ol(x - 4 - text_w(&FONT_XS, t), y - 2, &FONT_XS, t, c);
+}
+
 static void overlay(uint32_t y0, uint32_t now)
 {
     if (y0 == 0 && now < ui.msg_until && ui.msg_chord) {
@@ -1488,6 +1645,8 @@ static void overlay(uint32_t y0, uint32_t now)
         if (ui.msg[1][0])
             cv_text(240 - 10 - text_w(&FONT_XS, ui.msg[1]), 11, &FONT_XS, ui.msg[1], RGB(255, 120, 110));
     }
+    if (y0 == 0 && now >= ui.msg_until)
+        batt_draw();
     if (y0 == 0 && (ui.btn >> B_EDIT & 1u) && now >= ui.msg_until) {   /* EDIT held: the render's load, now and its
                                                                           * peak while held, and the voices sounding */
         char t[32], n[12];
@@ -1500,6 +1659,9 @@ static void overlay(uint32_t y0, uint32_t now)
         text_cat(t, n);
         text_cat(t, "%  V ");
         int_text((int32_t)eng_voices_on(), n);
+        text_cat(t, n);
+        text_cat(t, "/");                /* (of the most there may be: EDIT held and OCT+ / OCT-) */
+        int_text((int32_t)eng_voice_cap(0), n);
         text_cat(t, n);
         text_ol(10, 8, &FONT_XS, t, RGB(255, 236, 220));
         if (plat_cpu2_on()) {            /* two cores: the second's stack at its deepest, of 2816 bytes */
@@ -1603,7 +1765,7 @@ static void c2_watch(uint32_t now)
             plat_cpu2_set(0);            /* (from the main loop: no job outstanding) */
         c2_why = how == 2u ? C2_RESULTS : (uint8_t)plat_cpu2_gave_up();
         c2_lost = 0;
-        eng_voice_cap(8);
+        eng_voice_cap(voices_top());
         set.one_core = 1;                /* remembered: OCT+ on the boot screen tries again */
         plat_store_save(OBJ_SETTINGS, &set, sizeof set);
         app_say("ONE CORE", c2_text());
@@ -1629,6 +1791,7 @@ void app_frame(void)
     static uint32_t last_ms;
     static uint8_t had_msg, had_knob, had_beat;
     c2_watch(now);
+    batt_watch(now);
     loop_tick();
     input();
     speak();
@@ -1712,18 +1875,18 @@ void app_frame(void)
 #else
             plat_cpu2_set(1);            /* (the simulator: at once) */
             c2_why = C2_RUNS;
-            eng_voice_cap((int)ENG_VOICES);
-            app_say("TWO CORES", "12 VOICES");
+            eng_voice_cap(voices_top());
+            app_say("TWO CORES", c2_text());
 #endif
         } else if (two) {
-            app_say("TWO CORES", "12 VOICES");
+            app_say("TWO CORES", c2_text());
         } else {
             c2_restart_at = 0;
             if (plat_cpu2_on())
                 plat_cpu2_set(0);
             c2_why = C2_OFF;
-            eng_voice_cap(8);
-            app_say("ONE CORE", "8 VOICES");
+            eng_voice_cap(voices_top());
+            app_say("ONE CORE", c2_text());
         }
         ui.msg_until = now + 3000u;
     }
@@ -1795,6 +1958,10 @@ int app_expect(const char *what, int *got)
         *got = set.beat_var;
     else if (!strcmp(what, "bass"))
         *got = set.bass;
+    else if (!strcmp(what, "battery"))   /* the percentage shown; -1 none, -2 USB */
+        *got = batt_shown;
+    else if (!strcmp(what, "voice_cap"))
+        *got = eng_voice_cap(0);
     else if (!strcmp(what, "two_cores"))
         *got = !set.one_core;
     else if (!strcmp(what, "midi_ch"))
@@ -1830,6 +1997,10 @@ int app_host_cmd(const char *cmd, const char *a, const char *b, const char *c, c
 {
     int notes[ENG_VOICES], loop[16], n, nl, i;
     (void)a, (void)b, (void)c, (void)d;
+    if (!strcmp(cmd, "battery")) {       /* "battery N": the simulated cell's reading, in counts (620 = 4.0 V) */
+        host_batt_raw = a ? atoi(a) : 620;
+        return 1;
+    }
     if (strcmp(cmd, "heldnotes"))       /* "heldnotes MS oct O int I: held N N ... ; loop N N ...", O and I the patch's */
         return 0;
     n = eng_held_notes(notes, (int)ENG_VOICES);

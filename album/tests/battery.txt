@@ -1,0 +1,40 @@
+# Album: the battery at the top right (album_host battery.txt OUTDIR). The simulator's cell reads 620 counts (4.0 V):
+# 80 %. "battery N" sets the reading; the shown charge moves when it has moved 3 or more, at most every five seconds.
+wait 9000
+expect battery 80
+# the cell runs down: 3.68 V is 20 %, then 3.61 V is 11 %. Two cores were on: one now, for this session, and
+# that says the battery is low (the setting stays two)
+expect c1 1
+battery 570
+wait 6000
+expect battery 20
+expect c1 1
+listen
+battery 560
+wait 6000
+expect battery 11
+said ONE CORE BATTERY LOW
+expect c1 0
+expect two_cores 1
+expect voice_cap 8
+wait 4100
+shot battery-low.png
+# no second warning at the same charge; 5 % gets its own
+listen
+wait 6000
+battery 548
+wait 6000
+expect battery 4
+said BATTERY 5% CHARGE IT
+# charged again: the warnings are armed again
+battery 620
+wait 6000
+expect battery 80
+wait 4000
+shot battery-80.png
+# on one core already, 15 % says BATTERY LOW with the charge
+listen
+battery 560
+wait 6000
+expect battery 11
+said BATTERY LOW 11%
