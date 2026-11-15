@@ -28,7 +28,7 @@
  * core is held, its half of that block dropped, and it stays off until power-off (fm1-base's bar). Album then saves
  * one core and says why; OCT+ on the boot screen tries two again. */
 enum { C2_RUNS, C2_MISREAD, C2_LATE, C2_BARRED, C2_FAULT, C2_SILENT,   /* (1..5: plat_cpu2_gave_up's) */
-       C2_OFF, C2_RESULTS, C2_CRASH };
+       C2_OFF, C2_RESULTS, C2_CRASH, C2_BATTERY };
 static uint8_t c2_why = C2_OFF;          /* why one core, for the screen */
 static volatile uint8_t c2_lost;         /* the render: 1 it was given up, 2 its results were not numbers three times */
 static uint8_t c2_faults;
@@ -59,6 +59,7 @@ static const char *c2_text(void)         /* the screen's second line: the voices
     case C2_FAULT: return "CORE 2 CRASHED";
     case C2_SILENT: return "CORE 2 NO ANSWER";
     case C2_RESULTS: return "CORE 2 BAD RESULTS";
+    case C2_BATTERY: return "BATTERY LOW";
     case C2_BARRED:
     case C2_CRASH: return "CRASHED WITH TWO";
     default: return v;
@@ -1577,6 +1578,17 @@ static void batt_watch(uint32_t now)
         batt_shown = pct;
         batt_t = now;
         ph.dirty = 1;
+    }
+    if (batt_shown <= 15 && plat_cpu2_on()) {   /* a low cell: one core for the rest of this session (not saved:
+                                                 * charged and switched on again, two). A sagging supply is what the
+                                                 * second core's misreads need, and two cores draw more from it */
+        plat_cpu2_set(0);                /* (from the main loop: no job outstanding) */
+        c2_why = C2_BATTERY;
+        eng_voice_cap(voices_top());
+        batt_warned = 1;                 /* (this says it: no separate BATTERY LOW) */
+        app_say("ONE CORE", "BATTERY LOW");
+        ui.msg_until = now + 5000u;
+        return;
     }
     if (batt_shown >= 25)
         batt_warned = 0;                 /* (charged since: warn again next time) */

@@ -58,7 +58,8 @@ shows at the top for a moment when you choose it, and a knob's value shows at th
 | MASTER | Volume |
 
 **The battery.** The top right corner shows the battery's charge: an outline filled to it, and the percentage. It
-turns red at 15 % and under. At 15 % the screen says BATTERY LOW, and at 5 % BATTERY 5%, CHARGE IT. With a USB cable
+turns red at 15 % and under. At 15 % the screen says BATTERY LOW, and at 5 % BATTERY 5%, CHARGE IT. With two cores
+on, at 15 % Album goes to one core for the rest of that session and says ONE CORE, BATTERY LOW (section 9). With a USB cable
 in, it says USB instead, because the cell reads high while it charges. The percentage is worked out from the cell's
 voltage, so it reads a few percent low while you play, and it moves only every few seconds. It hides while a message
 is on the screen.
@@ -288,8 +289,10 @@ remembers that. The screen says ONE CORE and why:
 - CORE 2 NO ANSWER: it didn't start.
 - CORE 2 BAD RESULTS: what it made wasn't sound, three times.
 - CRASHED WITH TWO: the FM-1 itself crashed while two cores ran. The boot screen says this after the restart.
+- BATTERY LOW: the battery is at 15 % or under. A low battery leaves the chip less headroom, and two cores draw more
+  from it. This one isn't remembered: charged and switched on again, Album starts on two cores.
 
-From then on Album starts on one core, with eight voices at most: ONE CORE, 8 VOICES.
+From then on Album starts on one core, with eight voices at most: ONE CORE, 8 VOICES (except after BATTERY LOW).
 
 **Choosing.** Hold OCT- on the boot screen for a second and a half for ONE CORE. Hold OCT+ there the same way to go
 back to two: the screen says TWO CORES, RESTARTING, and the FM-1 restarts, because the second core only starts at
