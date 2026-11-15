@@ -57,6 +57,12 @@ shows at the top for a moment when you choose it, and a knob's value shows at th
 | REC | Record a chord loop (section 5) |
 | MASTER | Volume |
 
+**The battery.** The top right corner shows the battery's charge: an outline filled to it, and the percentage. It
+turns red at 15 % and under. At 15 % the screen says BATTERY LOW, and at 5 % BATTERY 5%, CHARGE IT. With a USB cable
+in, it says USB instead, because the cell reads high while it charges. The percentage is worked out from the cell's
+voltage, so it reads a few percent low while you play, and it moves only every few seconds. It hides while a message
+is on the screen.
+
 ![Red Door with a chord held: the photo wavers sideways with the pitch](img/screen-playing.png "Playing: the photo moves with the sound")
 
 ## 3. The five knobs
@@ -294,7 +300,8 @@ power-on. Album remembers the choice. A short press of OCT+ or OCT- on the boot 
 - **No sound:** turn MASTER up. Check that Blur is not all the way up on a patch with a long Swell and a note just
   played: the reverse reverb takes its time.
 - **The FM-1 restarted after a crash:** tell us what you were doing, with a photo of the crash screen. If two
-  cores were on, Album goes back to one (section 9).
+  cores were on, Album goes back to one (section 9). Check the battery too: a low cell (under about 15 %) can
+  make the chip unreliable, and two cores draw more from it.
 - **A crash screen right after installing:** switching from another firmware can leave its last crash behind for
   Album to show once. Turn the FM-1 off and on.
 - **Back to M-VAVE's firmware:** the install page has a button for it.

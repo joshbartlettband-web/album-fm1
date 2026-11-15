@@ -1514,6 +1514,115 @@ static void chord_draw(void)
     }
 }
 
+/* ---------------------------------------------------------------- battery --- */
+/* The battery's charge, from fm1-base's reading of it: ADC channel 3 (the cell through a divider), averaged by the
+ * main loop over about two seconds, in 10-bit counts. The divider and the converter's reference are not published.
+ * Taken as a 1 : 2 divider on a 3.3 V reference, 6.45 mV a count: then the stock firmware's three bar thresholds
+ * (531, 561, 591) fall at 3.43, 3.62 and 3.81 V, where a Li-ion cell's own steps are, and Optimist's reading of the
+ * same assumption shows about 3.87 V on a charged FM-1. Not checked with a meter on an FM-1 yet: BATT_UV_PER_COUNT
+ * is the one number to correct if the percentage reads wrong. Over USB the reading is the charger's, not the cell's,
+ * so the screen says USB instead. */
+#define BATT_UV_PER_COUNT 6452u
+#ifdef PLAT_HOST
+static int32_t host_batt_raw = 620;      /* (the simulator's cell: "battery N" sets it; 620 = 4.0 V) */
+#endif
+static int32_t batt_counts(void)         /* the cell's reading, 0 = none yet */
+{
+#ifdef __EMSCRIPTEN__
+    return 0;                            /* (the browser emulator has no battery) */
+#elif defined(PLAT_HOST)
+    return host_batt_raw;
+#else
+    return batt_raw;                     /* (plat_fm1.c's average, earlier in the unity build) */
+#endif
+}
+
+/* a Li-ion cell's charge from its voltage at rest, straight lines between these points. The FM-1 draws a little
+ * while it plays, so the cell reads a few percent low then */
+static int batt_pct_of(uint32_t mv)
+{
+    static const uint16_t MV[9] = {3400, 3550, 3650, 3720, 3800, 3900, 4000, 4100, 4180};
+    static const uint8_t PC[9] = {0, 5, 15, 30, 50, 65, 80, 92, 100};
+    uint32_t i;
+    if (mv <= MV[0])
+        return 0;
+    for (i = 1; i < 9u; i++)
+        if (mv < MV[i])
+            return PC[i - 1u] + (int)((mv - MV[i - 1u]) * (uint32_t)(PC[i] - PC[i - 1u]) / (uint32_t)(MV[i] - MV[i - 1u]));
+    return 100;
+}
+
+/* what the screen shows: -1 nothing (no reading, or no battery), -2 USB powers it, else 0..100. It moves only when
+ * the charge has moved 3 or more, at most every five seconds: a loud chord sags the cell a little */
+static int batt_shown = -1;
+static uint32_t batt_t;
+static uint8_t batt_warned;              /* the low warnings given on the way down: 1 at 15 %, 2 at 5 % */
+static void batt_watch(uint32_t now)
+{
+    int32_t raw = batt_counts();
+    int lvl = plat_battery(), pct;
+    if (lvl == 4) {                      /* a USB host: power, and the cell charging */
+        if (batt_shown != -2)
+            ph.dirty = 1;
+        batt_shown = -2;
+        batt_warned = 0;
+        return;
+    }
+    if (raw <= 0 || lvl < 0) {
+        batt_shown = -1;
+        return;
+    }
+    pct = batt_pct_of((uint32_t)raw * BATT_UV_PER_COUNT / 1000u);
+    if (batt_shown < 0 || ((pct >= batt_shown + 3 || pct <= batt_shown - 3) && now - batt_t >= 5000u)) {
+        batt_shown = pct;
+        batt_t = now;
+        ph.dirty = 1;
+    }
+    if (batt_shown >= 25)
+        batt_warned = 0;                 /* (charged since: warn again next time) */
+    else if (batt_shown <= 5 && batt_warned < 2u && now >= ui.msg_until) {
+        batt_warned = 2;
+        app_say("BATTERY 5%", "CHARGE IT");
+        ui.msg_until = now + 5000u;
+    } else if (batt_shown <= 15 && batt_warned < 1u && now >= ui.msg_until) {
+        char t[8];
+        batt_warned = 1;
+        int_text(batt_shown, t);
+        text_cat(t, "%");
+        app_say("BATTERY LOW", t);
+        ui.msg_until = now + 4000u;
+    }
+}
+
+/* the battery at the top right: an outline filled to the charge (red at 15 % and under) and the percentage, or USB */
+static void batt_draw(void)
+{
+    const int32_t x = 213, y = 9, w = 19, h = 10;
+    uint16_t ink = RGB(255, 236, 220), low = RGB(255, 90, 80), c;
+    char t[8];
+    if (batt_shown == -1)
+        return;
+    c = batt_shown >= 0 && batt_shown <= 15 ? low : ink;
+    cv_rect(x - 1, y - 1, w + 2, h + 2, 0);              /* (a dark edge, as text_ol's, against a bright photo) */
+    cv_rect(x + w + 1, y + 2, 3, h - 4, 0);
+    cv_rect(x, y, w, h, c);
+    cv_rect(x + 1, y + 1, w - 2, h - 2, 0);
+    cv_rect(x + w, y + 3, 2, h - 6, c);                  /* the tip */
+    if (batt_shown >= 0) {
+        int32_t f = (w - 4) * batt_shown / 100;
+        if (f < 1 && batt_shown > 0)
+            f = 1;
+        cv_rect(x + 2, y + 2, f, h - 4, c);
+        int_text(batt_shown, t);
+        text_cat(t, "%");
+    } else {
+        cv_rect(x + 7, y + 2, 5, h - 4, c);              /* (USB: a block in the middle, a plug's end) */
+        t[0] = 0;
+        text_cat(t, "USB");
+    }
+    text_ol(x - 4 - text_w(&FONT_XS, t), y - 2, &FONT_XS, t, c);
+}
+
 static void overlay(uint32_t y0, uint32_t now)
 {
     if (y0 == 0 && now < ui.msg_until && ui.msg_chord) {
@@ -1524,6 +1633,8 @@ static void overlay(uint32_t y0, uint32_t now)
         if (ui.msg[1][0])
             cv_text(240 - 10 - text_w(&FONT_XS, ui.msg[1]), 11, &FONT_XS, ui.msg[1], RGB(255, 120, 110));
     }
+    if (y0 == 0 && now >= ui.msg_until)
+        batt_draw();
     if (y0 == 0 && (ui.btn >> B_EDIT & 1u) && now >= ui.msg_until) {   /* EDIT held: the render's load, now and its
                                                                           * peak while held, and the voices sounding */
         char t[32], n[12];
@@ -1668,6 +1779,7 @@ void app_frame(void)
     static uint32_t last_ms;
     static uint8_t had_msg, had_knob, had_beat;
     c2_watch(now);
+    batt_watch(now);
     loop_tick();
     input();
     speak();
@@ -1834,6 +1946,8 @@ int app_expect(const char *what, int *got)
         *got = set.beat_var;
     else if (!strcmp(what, "bass"))
         *got = set.bass;
+    else if (!strcmp(what, "battery"))   /* the percentage shown; -1 none, -2 USB */
+        *got = batt_shown;
     else if (!strcmp(what, "voice_cap"))
         *got = eng_voice_cap(0);
     else if (!strcmp(what, "two_cores"))
@@ -1871,6 +1985,10 @@ int app_host_cmd(const char *cmd, const char *a, const char *b, const char *c, c
 {
     int notes[ENG_VOICES], loop[16], n, nl, i;
     (void)a, (void)b, (void)c, (void)d;
+    if (!strcmp(cmd, "battery")) {       /* "battery N": the simulated cell's reading, in counts (620 = 4.0 V) */
+        host_batt_raw = a ? atoi(a) : 620;
+        return 1;
+    }
     if (strcmp(cmd, "heldnotes"))       /* "heldnotes MS oct O int I: held N N ... ; loop N N ...", O and I the patch's */
         return 0;
     n = eng_held_notes(notes, (int)ENG_VOICES);

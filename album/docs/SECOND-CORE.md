@@ -16,6 +16,10 @@ model.
   be raised a step at a time on the FM-1 itself. What isn't known yet: whether the crash was the load (the render
   running out of time), a misread, or something else. The next crash screen, or what the boot screen says after it,
   decides that.
+- **Josh thinks a low battery was part of it** (2026-11-15). A sagging cell lowers the chip's supply margin, which
+  is the same margin the misreads depend on, and two cores draw more. Album now shows the battery's percentage
+  (top right) and warns at 15 % and 5 %, so a crash can be matched to the charge. Not done: dropping to one core on
+  a low battery by itself.
 - **Album 02 runs two cores on Josh's FM-1.** It uses fm1-base's second core (`cpu2 = true`,
   `cpu2_fallback = true`), started in `app_init`, and has no Bluetooth (`ble = false`). Album 01 now does the same:
   - `album/fm1.toml` has the same three settings. Album's own `cpu1/cpu1.c`, `entry.S` and `supply.h` are gone.
