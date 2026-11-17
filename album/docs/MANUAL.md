@@ -232,6 +232,35 @@ SELECT to set the beat's level, apart from the rest of the sound: five steps a c
 knobs'. It starts at 50; 100 is twice as loud, 0 silent. (Turning a knob while SEQ is held leaves the beat running when you let go.) Changing patch keeps the beat's place: the new patch's beat and tempo take over on the next
 sixteenth. In chord mode on BLUESTEM, the arpeggio follows the same clock, with or without the beat.
 
+**More beats.** Hold SEQ and turn PRESET to give the patch you're on another beat: the patch's own first, then a
+library of sixteen, then any you've made yourself (below). The screen says BEAT, its number and its name. Each patch
+remembers its pick, SAVE keeps it, and the beat plays at its own tempo, which SEQ and ALGORITHM can change as before.
+Fills, SPARSE and BUSY, and the bass work with every beat.
+
+| # | Beat | Tempo | |
+| --- | --- | --- | --- |
+| 1 | DREAM POP | 92 | Soft kick and snare under a hush of hats |
+| 2 | SHOEGAZE WASH | 80 | An open hat on the one, the snare far back, a roll into every fourth bar |
+| 3 | SHOEGAZE DRIVE | 116 | Pushing eighths, open hats, a roll every fourth bar |
+| 4 | TRIP-HOP | 84 | Slow, heavy and swung |
+| 5 | TRIP-HOP DUSTY | 76 | A rim instead of a snare, very muffled |
+| 6 | TRIP-HOP SWING | 90 | Swung hard, a ghost on the snare |
+| 7 | MOTORIK | 120 | The straight road: four on the floor, eighths on the hat |
+| 8 | MOTORIK SLOW | 100 | The same at night, sixteenths on the hat |
+| 9 | HALF-TIME | 140 | A fast tempo with the snare once a bar |
+| 10 | HALF-TIME HEAVY | 150 | Heavier, with a roll every fourth bar |
+| 11 | BRUSHES BALLAD | 66 | A brush swirling round a slow two and four |
+| 12 | BRUSHES SHUFFLE | 96 | Swung brushes |
+| 13 | BRUSHES SLOW | 58 | Barely there |
+| 14 | BROKEN BEAT | 100 | The kick and snare off their usual places |
+| 15 | BROKEN SHUFFLE | 94 | Broken and swung, a tom now and then |
+| 16 | BROKEN STEPPER | 128 | A stepping kick, a rim on two and four |
+
+**Your own beats.** Make beats in the beat maker, a page in the Claude app: a grid of sixteen steps for kick, snare,
+closed and open hat, tom and rim, with tempo, swing, tone, reverb and brushes, played as you build it. Save them
+there, and ask Claude to add them: they go into the firmware after the library's sixteen, in the next build on the
+install page. (The page makes its own drum sounds, close to the FM-1's but not the same.)
+
 **Fills.** Press ENV for a fill: toms tumbling down and the snare rolling in (or the patch's own fill, where its beat
 has one) to the end of the bar, or to the end of the next one when you press late in the bar. Hold ENV and the fill
 keeps going until you let go.

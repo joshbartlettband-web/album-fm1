@@ -6,6 +6,7 @@
 #include "fastmath.h"
 #include "plat.h"
 #include "patches.h"
+#include "beats.h"
 
 /* ------------------------------------------------------------------ tools --- */
 #define SINE_N 1024u
@@ -1007,6 +1008,20 @@ static struct {
 static float pulse;
 
 void eng_beat(int on) { beat_req = on ? 1 : 2; }
+
+/* the library: its own sixteen, then the beat maker's */
+int eng_beats(void) { return (int)(BEATS_LIB_N + BEATS_MINE_N); }
+static const beat_entry_t *beat_entry(int i)
+{
+    if (i < 1 || i > eng_beats())
+        return 0;
+    return (uint32_t)i <= BEATS_LIB_N ? &BEATS_LIB[i - 1] : &BEATS_MINE[(uint32_t)i - 1u - BEATS_LIB_N];
+}
+const char *eng_beat_name(int i) { return beat_entry(i) ? beat_entry(i)->name : ""; }
+const beat_t *eng_beat_lib(int i) { return beat_entry(i) ? &beat_entry(i)->b : 0; }
+static const beat_t *volatile beat_picked;   /* the main loop's pick (NULL: the patch's own), read in the render */
+void eng_beat_pick(int i) { beat_picked = eng_beat_lib(i); }
+static inline const beat_t *beat_now(const patch_t *p) { return beat_picked ? beat_picked : p->beat; }
 void eng_tempo(float bpm) { tempo_bpm = fm_clampf(bpm, 40.0f, 240.0f); }
 void eng_beat_level(float v) { beat_lv = fm_clampf(v, 0.0f, 2.0f); }
 int eng_beat_on(void) { return C.on; }
@@ -1137,7 +1152,7 @@ int eng_bass_last(uint32_t *step) { *step = bass_last_step; return bass_last; }
 static void fire(uint32_t step)          /* a sixteenth: the arpeggio's next note, the kit's hits, the bass */
 {
     const patch_t *p = B.p;
-    const beat_t *b = p->beat;
+    const beat_t *b = beat_now(p);
     uint32_t s = step & 15u, bar = step >> 4;
     int sparse = beat_var == 0, busy = beat_var == 2;
     float v;
@@ -1604,7 +1619,7 @@ void eng_end(int32_t *lr, uint32_t n, float gain)
     const float tl = p->trem_l * tsync / ENG_FS, tr = p->trem_r * tsync / ENG_FS, td = p->trem_depth;
     const float tape = p->tape, drive = 1.0f + 2.2f * tape, make_up = (1.0f + 0.4f * tape) / drive;
     const float out_gain = gain * 8000000.0f;
-    const beat_t *bt = p->beat;
+    const beat_t *bt = beat_now(p);
     const float sps = ENG_FS * 15.0f / tempo_bpm, swing = bt ? bt->swing : 0.0f;
     const float kit_g = bt ? bt->level * beat_lv * 0.5f : 0.0f, kit_send = bt ? bt->send : 0.0f;
     const float kit_lpc = 1.0f - fm_expf(-FM_TWO_PI * (bt ? bt->tone : 8000.0f) / ENG_FS);

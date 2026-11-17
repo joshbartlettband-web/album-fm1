@@ -102,8 +102,11 @@ typedef struct {
     uint8_t split;                       /* SEL: the keys from split_key up sound 0 (no split), 1 or 2 octaves higher */
     uint8_t split_key;                   /* the split's first upper key, 1..26 (key 0 is F3); 12, F4, to start */
     uint8_t pad[2];
+    /* (0.1.76 and earlier end here) */
+    uint8_t beat[MAX_PATCH];             /* each patch's beat: 0 its own, 1.. the library's (SEQ held and PRESET) */
 } settings_t;
-#define SET_OLD_SIZE ((int)__builtin_offsetof(settings_t, split))
+#define SET_OLD_SIZE ((int)__builtin_offsetof(settings_t, split))   /* 0.1.73 and earlier */
+#define SET_OLD_SIZE2 ((int)__builtin_offsetof(settings_t, beat))   /* 0.1.74 .. 0.1.76 */
 static settings_t set;
 
 /* the key's octave: OCT's, and the split's on the keys from its point up (SEL) */
@@ -140,6 +143,8 @@ static void settings_defaults(void)
     set.split = 0;
     set.split_key = 12;
     for (p = 0; p < MAX_PATCH; p++)
+        set.beat[p] = 0;
+    for (p = 0; p < MAX_PATCH; p++)
         set.tempo[p] = 0;
     for (p = 0; p < MAX_PATCH; p++)
         for (k = 0; k < NKNOB; k++)
@@ -156,14 +161,20 @@ static void knobs_to_engine(void)
         eng_knob((int)k, knob_val(k));
 }
 
+static const beat_t *beat_of_patch(void)  /* the beat this patch plays: the library's it picked, or its own */
+{
+    return set.beat[set.patch] ? eng_beat_lib(set.beat[set.patch]) : eng_patch_info(set.patch)->beat;
+}
+
 static int tempo_now(void)               /* this patch's tempo, BPM */
 {
-    const beat_t *b = eng_patch_info(set.patch)->beat;
+    const beat_t *b = beat_of_patch();
     return (b ? (int)b->bpm : 90) + set.tempo[set.patch];
 }
 
 static void beat_to_engine(void)
 {
+    eng_beat_pick(set.beat[set.patch]);
     eng_tempo((float)tempo_now());
     eng_beat_level((float)set.beat_level * 0.014f);   /* 50 the kit as each beat is written, 100 about 6 dB more */
 }
@@ -296,7 +307,12 @@ void app_init(void)
         set.split = 0;
         set.split_key = 12;
     }
-    if ((n != (int)sizeof set && n != SET_OLD_SIZE) || set.magic != SET_MAGIC
+    if (n == SET_OLD_SIZE || n == SET_OLD_SIZE2) {   /* (saved by 0.1.76 or earlier: no beat picked yet) */
+        uint32_t q;
+        for (q = 0; q < MAX_PATCH; q++)
+            set.beat[q] = 0;
+    }
+    if ((n != (int)sizeof set && n != SET_OLD_SIZE && n != SET_OLD_SIZE2) || set.magic != SET_MAGIC
         || set.split > 2u || set.split_key < 1u || set.split_key >= NKEYS
         || set.octave < -2 || set.octave > 2 || set.ble_off > 1u || set.one_core > 1u || set.key > 11u
         || set.chords > 2u || set.beat_level > 100u || set.fuzz_off > 1u || set.beat_var > 2u || set.bass > 1u
@@ -304,6 +320,12 @@ void app_init(void)
         settings_defaults();
     if (set.patch >= (uint32_t)eng_patch_count())
         set.patch = 0;
+    {
+        uint32_t q;
+        for (q = 0; q < MAX_PATCH; q++)  /* (a beat no longer in the library: the patch's own) */
+            if (set.beat[q] > (uint32_t)eng_beats())
+                set.beat[q] = 0;
+    }
     midi_rx_ch = set.midi_ch;
     eng_patch(set.patch);
     knobs_to_engine();
@@ -1180,7 +1202,7 @@ static void beat_set(int on)             /* SEQ: start or stop; MIDI start and s
 
 static void tempo_step(int32_t d)
 {
-    const beat_t *b = eng_patch_info(set.patch)->beat;
+    const beat_t *b = beat_of_patch();
     int base = b ? (int)b->bpm : 90, t = clamp(tempo_now() + d, 50, 200);
     char s[12];
     set.tempo[set.patch] = (int8_t)clamp(t - base, -100, 100);
@@ -1189,6 +1211,25 @@ static void tempo_step(int32_t d)
     int_text(tempo_now(), s);
     text_cat(s, " BPM");
     app_say("TEMPO", s);
+}
+
+/* SEQ held and PRESET: this patch's beat, its own then the library's, round; the tempo the new beat's own */
+static void beat_step(int32_t d)
+{
+    int n = eng_beats() + 1, b = ((int)set.beat[set.patch] + (d > 0 ? 1 : -1) + n) % n;
+    set.beat[set.patch] = (uint8_t)b;
+    set.tempo[set.patch] = 0;
+    set_dirty = 1;
+    beat_to_engine();
+    if (b) {
+        char t[24];
+        int_text(b, t);
+        text_cat(t, " ");
+        text_cat(t, eng_beat_name(b));
+        app_say("BEAT", t);
+    } else {
+        app_say("BEAT", "THE PATCH'S OWN");
+    }
 }
 
 #define SHOW_BEAT ((int8_t)NKNOB)         /* the knob bar showing the beat's level */
@@ -1459,7 +1500,10 @@ static void input(void)
     for (k = 0; k < NE; k++) {
         if ((e = plat_enc((int)k)) == 0)
             continue;
-        if (k == EN_PRESET) {
+        if (k == EN_PRESET && (btn >> B_SEQ & 1u)) {   /* SEQ held: this patch's beat */
+            ui.seq_used = 1;
+            beat_step(e);
+        } else if (k == EN_PRESET) {
             patch_set((int32_t)set.patch + (e > 0 ? 1 : -1), 1);
         } else if (k == EN_ALGO && (btn >> B_SEQ & 1u)) {   /* SEQ held: the beat's tempo */
             ui.seq_used = 1;
@@ -2033,6 +2077,12 @@ int app_expect(const char *what, int *got)
         *got = set.bass;
     else if (!strcmp(what, "battery"))   /* the percentage shown; -1 none, -2 USB */
         *got = batt_shown;
+    else if (!strcmp(what, "beat_pick"))
+        *got = set.beat[set.patch];
+    else if (!strcmp(what, "beats"))
+        *got = eng_beats();
+    else if (!strcmp(what, "tempo_now"))
+        *got = tempo_now();
     else if (!strcmp(what, "fx_page"))
         *got = ui.fx_page;
     else if (!strcmp(what, "split"))

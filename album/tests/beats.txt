@@ -1,0 +1,84 @@
+# Album: the beat library (album_host beats.txt OUTDIR). SEQ held and PRESET picks this patch's beat: its own, then
+# the library's sixteen (and the beat maker's after them), round; each plays at its own tempo
+wait 9000
+expect patch 0
+expect beat_pick 0
+expect tempo_now 86
+# SEQ held, PRESET a click: the library's first. The patch stays, and SEQ's release leaves the beat off
+listen
+press SEQ
+turn PRESET 1
+wait 60
+release SEQ
+wait 60
+said BEAT 1 DREAM POP
+expect beat_pick 1
+expect tempo_now 92
+expect patch 0
+expect beat 0
+# back two: round to the last of the library (16 of them, none of the beat maker's in this build)
+press SEQ
+turn PRESET -2
+wait 60
+release SEQ
+wait 60
+expect beat_pick 16
+expect tempo_now 128
+# heard: trip-hop, then brushes
+press SEQ
+turn PRESET -12
+wait 60
+release SEQ
+expect beat_pick 4
+listen
+tap SEQ
+wait 60
+expect beat 1
+wav beats.wav
+wait 6000
+press SEQ
+turn PRESET 7
+wait 60
+release SEQ
+wait 60
+said BEAT 11 BRUSHES BALLAD
+expect beat_pick 11
+expect tempo_now 66
+expect beat 1
+wait 7000
+wavstop
+tap SEQ
+wait 60
+# each patch keeps its own pick: MAPLE plays its own, RED DOOR still the brushes
+turn PRESET 1
+wait 200
+expect patch 1
+expect beat_pick 0
+turn PRESET -1
+wait 200
+expect beat_pick 11
+# a tempo set on a picked beat, and back to the patch's own: its own tempo again
+press SEQ
+turn ALGO 2
+wait 60
+release SEQ
+expect tempo_now 68
+press SEQ
+turn PRESET -11
+wait 60
+release SEQ
+wait 60
+said BEAT THE PATCH'S OWN
+expect beat_pick 0
+expect tempo_now 86
+# kept by SAVE, across a restart
+press SEQ
+turn PRESET 5
+wait 60
+release SEQ
+tap SAVE
+wait 300
+reboot
+wait 9000
+expect beat_pick 5
+expect tempo_now 76

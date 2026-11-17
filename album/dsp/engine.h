@@ -47,6 +47,7 @@ typedef struct {
     const char *kick, *snare, *hat, *open, *tom, *rim;
     const char *fill;                    /* the snare in every fourth bar, if any (the roll into the next phrase) */
 } beat_t;
+typedef struct { const char *name; beat_t b; } beat_entry_t;   /* a library beat: its name and itself (beats.h) */
 
 typedef struct {
     const char *name;
@@ -116,6 +117,11 @@ void eng_arp_note(int note, int on);     /* a mono patch in chord mode: a note i
 /* the beat and the clock it shares with the arpeggio. SEQ starts it at a bar's start; a patch change keeps its place.
  * Clock in (MIDI F8, from the render) takes over from the tempo while it comes, as a linked FM-1's does */
 void eng_beat(int on);                   /* main loop */
+/* the beat library (beats.h, and the beat maker's: beats_mine.h): 1 .. eng_beats() its beats, 0 the patch's own */
+int eng_beats(void);
+const char *eng_beat_name(int i);        /* 1 .. eng_beats(); "" otherwise */
+const beat_t *eng_beat_lib(int i);       /* 1 .. eng_beats(); NULL otherwise */
+void eng_beat_pick(int i);               /* main loop: the beat the patch plays, 0 its own */
 void eng_tempo(float bpm);               /* main loop: this patch's tempo */
 void eng_beat_level(float v);            /* 0..2: 0.7 the kit as written */
 void eng_clock_in(int what);             /* the render's MIDI: 0xF8 a tick, 0xFA start, 0xFC stop */

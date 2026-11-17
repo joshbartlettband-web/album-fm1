@@ -20,6 +20,8 @@ time they ring, heard through a reverse reverb.
 - A beat for every patch (SEQ), soft and muffled, partly into the reverse reverb, at its own level; fills (ENV), sparse
   or busy (LFO), and an auto bass on the kick (GLO); tempo on SEQ and ALGORITHM; it follows MIDI clock
 - MIDI in and out over USB, and in over TRS, on any channel (EDIT and SELECT). No Bluetooth
+- Sixteen more beats any patch can play (SEQ held and PRESET): dream-pop, shoegaze, trip-hop, motorik, half-time,
+  brushes, broken beats; and beats you make yourself in the beat maker, built in from `album/beats/`
 - A split keyboard (SEL): the keys from F4 up (or another key) an octave or two higher, for low parts under high
   ones
 - The battery's charge in the corner of the screen, as a percentage, with a warning when it runs low
