@@ -10,7 +10,7 @@ time they ring, heard through a reverse reverb.
   the shelf (`album/shelf/`)
 - Five knobs on every patch: Glide, Swell, Tone, Blur, and Fuzz on ALGORITHM (a fuzz pedal on the whole chord, FX
   in and out, with its own low, mid and high), each acting on the sound and the photo
-- Four effects on the whole sound, under EDIT: JET, a slow jet-plane flanger (K1); ECHO, a dark tape echo in time
+- Four effects on the whole sound, on K1 to K4 after a tap of EDIT (or with EDIT held): JET, a slow jet-plane flanger (K1); ECHO, a dark tape echo in time
   with the tempo (K2); DRIVE, a valve amp turned up (K3); CHORUS (K4)
 - A chord loop to jam over (REC): play chords, one a bar, for 1 to 8 bars, and the keys play single notes in the key
   over them; PLAY stops and starts it
@@ -20,6 +20,8 @@ time they ring, heard through a reverse reverb.
 - A beat for every patch (SEQ), soft and muffled, partly into the reverse reverb, at its own level; fills (ENV), sparse
   or busy (LFO), and an auto bass on the kick (GLO); tempo on SEQ and ALGORITHM; it follows MIDI clock
 - MIDI in and out over USB, and in over TRS, on any channel (EDIT and SELECT). No Bluetooth
+- A split keyboard (SEL): the keys from F4 up (or another key) an octave or two higher, for low parts under high
+  ones
 - The battery's charge in the corner of the screen, as a percentage, with a warning when it runs low
 - Two cores, eight voices (six to twelve by choice: EDIT held and OCT+ / OCT-); one core takes over on a unit
   whose second core misbehaves (or OCT- on the boot screen)

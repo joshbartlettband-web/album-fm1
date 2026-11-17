@@ -98,8 +98,16 @@ typedef struct {
                                           * (until 0.1.63 this byte was two_cores, 0 or 1) */
     uint8_t midi_ch;                     /* 0: every channel in, 1 out; 1..16: that one only, in and out */
     int8_t tempo[MAX_PATCH];             /* each patch's tempo, BPM from its beat's own */
+    /* (0.1.73 and earlier end here: their saved settings load, and these start as below) */
+    uint8_t split;                       /* SEL: the keys from split_key up sound 0 (no split), 1 or 2 octaves higher */
+    uint8_t split_key;                   /* the split's first upper key, 1..26 (key 0 is F3); 12, F4, to start */
+    uint8_t pad[2];
 } settings_t;
+#define SET_OLD_SIZE ((int)__builtin_offsetof(settings_t, split))
 static settings_t set;
+
+/* the key's octave: OCT's, and the split's on the keys from its point up (SEL) */
+static int key_oct(uint32_t k) { return set.octave + (set.split && k >= set.split_key ? (int)set.split : 0); }
 
 /* The most voices. Eight unless chosen (EDIT held and OCT+ / OCT-): on one core that is its whole. On two cores
  * eight is four a core, about half the work each core can do: on the FM-1 two cores were first tried on, twelve
@@ -129,6 +137,8 @@ static void settings_defaults(void)
     set.bass = 0;
     set.voices = 0;
     set.midi_ch = 0;
+    set.split = 0;
+    set.split_key = 12;
     for (p = 0; p < MAX_PATCH; p++)
         set.tempo[p] = 0;
     for (p = 0; p < MAX_PATCH; p++)
@@ -281,7 +291,13 @@ static void voices_back(uint32_t now)    /* a shed voice back after each two cal
 void app_init(void)
 {
     eng_init();
-    if (plat_store_load(OBJ_SETTINGS, &set, sizeof set) != (int)sizeof set || set.magic != SET_MAGIC
+    int n = plat_store_load(OBJ_SETTINGS, &set, sizeof set);
+    if (n == SET_OLD_SIZE) {             /* (saved by 0.1.73 or earlier: no split yet) */
+        set.split = 0;
+        set.split_key = 12;
+    }
+    if ((n != (int)sizeof set && n != SET_OLD_SIZE) || set.magic != SET_MAGIC
+        || set.split > 2u || set.split_key < 1u || set.split_key >= NKEYS
         || set.octave < -2 || set.octave > 2 || set.ble_off > 1u || set.one_core > 1u || set.key > 11u
         || set.chords > 2u || set.beat_level > 100u || set.fuzz_off > 1u || set.beat_var > 2u || set.bass > 1u
         || set.voices > ENG_VOICES || set.midi_ch > 16u)
@@ -617,6 +633,9 @@ static struct {
     int16_t key_notes[NKEYS][8];         /* the notes each held key started (one, or a chord) */
     uint8_t key_n[NKEYS], key_vel[NKEYS], key_arp[NKEYS];   /* how many; its velocity; sent to the arpeggio */
     uint8_t fx_used;                     /* the fuzz's EQ set while FX was held: the fuzz left in */
+    uint8_t fx_page;                     /* EDIT tapped: K1 to K4 are JET, ECHO, DRIVE, CHORUS (0: GLIDE .. BLUR) */
+    uint8_t edit_used;                   /* something set while EDIT was held: its release does not turn the page */
+    uint8_t sel_used;                    /* a key pressed while SEL was held: the split point set */
     uint8_t arp_used;                    /* a key pressed while ARP was held: the key set, chord mode left as it is */
     uint8_t boot_screen;                 /* the intro is on: OCT+ or OCT- held there chooses the cores */
     uint8_t oct_used;
@@ -896,7 +915,7 @@ static void loop_take(uint32_t k, int mode, uint32_t v)   /* recording: a chord 
     lp.bar[idx].mode = (uint8_t)mode;
     lp.bar[idx].key = set.key;
     lp.bar[idx].vel = (uint8_t)v;
-    lp.bar[idx].oct = set.octave;
+    lp.bar[idx].oct = (int8_t)key_oct(k);
     lp.bar[idx].set = 1;
     if (idx > lp.last)
         lp.last = (uint8_t)idx;
@@ -904,7 +923,7 @@ static void loop_take(uint32_t k, int mode, uint32_t v)   /* recording: a chord 
 
 static void key_down(uint32_t k, uint32_t v, int quiet)
 {
-    int bass = clamp(53 + (int32_t)k + 12 * set.octave, 0, 127), i, mode = set.chords, nc;
+    int oct = key_oct(k), bass = clamp(53 + (int32_t)k + 12 * oct, 0, 127), i, mode = set.chords, nc;
     const patch_t *p = eng_patch_info(set.patch);
     uint32_t v_in = v;
     int pc = bass % 12, black = (0x54A >> pc) & 1;
@@ -914,7 +933,7 @@ static void key_down(uint32_t k, uint32_t v, int quiet)
         mode = MODE_TUNE;                /* a loop playing: a tune over it */
     else if ((lp.state == LOOP_ARMED || lp.state == LOOP_REC) && mode == MODE_NOTES)
         mode = MODE_CHORDS;              /* recording one: chords, whatever ARP says */
-    if ((nc = key_chord(k, set.octave, mode, 0, &v, ui.key_notes[k], name)) > 0) {
+    if ((nc = key_chord(k, oct, mode, 0, &v, ui.key_notes[k], name)) > 0) {
         ui.key_n[k] = (uint8_t)nc;
         ui.key_arp[k] = p->mono;
         eng_bass_root(ui.key_notes[k][0]);   /* the bass plays the chord's lowest note */
@@ -1092,6 +1111,41 @@ static void key_set(int key)
     keys_again();
     loop_revoice();
     app_say("KEY", KEY_NAME(set.key));
+}
+
+/* SEL: the split. A tap: off, the right side an octave up, two octaves up. Held, a key: the split's first upper
+ * key (and the split on, if it was off). Held keys keep the notes they started with until let go */
+static void split_say(void)
+{
+    static const char *const NN[12] = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
+    char t[16];
+    uint32_t m = 53u + set.split_key;
+    if (!set.split) {
+        app_say("SPLIT", "OFF");
+        return;
+    }
+    char o[2] = {(char)('0' + (int)(m / 12u) - 1), 0};   /* (the octave's number: F4 is MIDI 65) */
+    t[0] = 0;
+    text_cat(t, NN[m % 12u]);
+    text_cat(t, o);
+    text_cat(t, set.split == 1u ? " UP 1 OCT" : " UP 2 OCT");
+    app_say("SPLIT AT", t);
+}
+static void split_step(void)
+{
+    set.split = (uint8_t)((set.split + 1u) % 3u);
+    set_dirty = 1;
+    split_say();
+}
+static void split_point(uint32_t k)
+{
+    if (k < 1u)
+        k = 1u;                          /* (the lowest key stays on the lower side) */
+    set.split_key = (uint8_t)k;
+    if (!set.split)
+        set.split = 1;
+    set_dirty = 1;
+    split_say();
 }
 
 static void chords_set(int mode)          /* ARP: CHORDS, ACCORDION, NOTES */
@@ -1274,6 +1328,12 @@ static void input(void)
         if ((keys & bit) && !(ui.keys & bit)) {
             uint32_t v = touch_vel(k);
             v = v ? v : 100u;
+            if (btn >> B_SEL & 1u) {     /* SEL held: the split's first upper key */
+                ui.sel_used = 1;
+                ui.key_n[k] = 0;
+                split_point(k);
+                continue;
+            }
             if (btn >> B_ARP & 1u) {     /* ARP held: this key's note is the key */
                 ui.arp_used = 1;
                 ui.key_n[k] = 0;
@@ -1298,6 +1358,7 @@ static void input(void)
         case B_OCTDN:                    /* (on the boot screen: on its release, unless held to choose the cores) */
         case B_OCTUP:
             if (btn >> B_EDIT & 1u) {    /* EDIT held: the most voices */
+                ui.edit_used = 1;
                 voices_step(k == B_OCTUP ? 1 : -1);
                 ui.oct_used = 1;         /* (on the boot screen: not the octave, not the cores) */
             } else if (ui.boot_screen) {
@@ -1354,10 +1415,11 @@ static void input(void)
             eng_bass(set.bass);
             app_say("BASS", set.bass ? "ON" : "OFF");
             break;
-        case B_EDIT:                     /* the MIDI channel shown (EDIT held and SELECT sets it) */
-            ui.knob_shown = SHOW_CH;
-            ui.knob_until = plat_ms() + 1500u;
-            ph.dirty = 1;
+        case B_EDIT:                     /* K1 to K4's page, on its release (unless something was set while held) */
+            ui.edit_used = 0;
+            break;
+        case B_SEL:                      /* the split, on its release (unless a key set its point while held) */
+            ui.sel_used = 0;
             break;
         case B_SEQ:                      /* the beat, on its release (unless its tempo or level was set while held) */
             ui.seq_used = 0;
@@ -1366,6 +1428,12 @@ static void input(void)
             break;
         }
     }
+    if (!(btn >> B_EDIT & 1u) && (ui.btn >> B_EDIT & 1u) && !ui.edit_used) {
+        ui.fx_page = (uint8_t)!ui.fx_page;   /* K1 to K4: the effects, or the sound's four */
+        app_say(ui.fx_page ? "EFFECTS" : "SOUND", ui.fx_page ? "JET ECHO DRIVE CHORUS" : "GLIDE SWELL TONE BLUR");
+    }
+    if (!(btn >> B_SEL & 1u) && (ui.btn >> B_SEL & 1u) && !ui.sel_used)
+        split_step();
     if (!(btn >> B_ARP & 1u) && (ui.btn >> B_ARP & 1u) && !ui.arp_used)
         chords_set(set.chords == MODE_CHORDS ? MODE_ACCORDION : set.chords == MODE_ACCORDION ? MODE_NOTES : MODE_CHORDS);
     if (!(btn >> B_FX & 1u) && (ui.btn >> B_FX & 1u) && !ui.fx_used) {
@@ -1400,15 +1468,19 @@ static void input(void)
             int32_t step = (e > 2 || e < -2) ? 10 : 5;
             knob_set(K_FUZZ, (int32_t)set.knob[set.patch][K_FUZZ] + e * step, 1);
         } else if (k == EN_SELECT && (btn >> B_EDIT & 1u)) {   /* EDIT held: the MIDI channel */
+            ui.edit_used = 1;
             midi_ch_set((int32_t)set.midi_ch + (e > 0 ? 1 : -1));
         } else if (k == EN_SELECT && (btn >> B_SEQ & 1u)) {   /* SEQ held: the beat's level */
             ui.seq_used = 1;
             beat_level_step(e * ((e > 2 || e < -2) ? 10 : 5));
         } else if (k == EN_SELECT) {     /* chord mode's key */
             key_set((int)set.key + (e > 0 ? 1 : -1));
-        } else if (k >= EN_K1 && k <= EN_K4 && (btn >> B_EDIT & 1u)) {   /* EDIT held: JET, ECHO, DRIVE, CHORUS */
+        } else if (k >= EN_K1 && k <= EN_K4 && ((btn >> B_EDIT & 1u) || ui.fx_page)) {   /* the effects' page, or
+                                                                                    * EDIT held: JET, ECHO, DRIVE, CHORUS */
             int32_t step = (e > 2 || e < -2) ? 10 : 5;
             uint32_t q = K_JET + (k - EN_K1);
+            if (btn >> B_EDIT & 1u)
+                ui.edit_used = 1;
             knob_set(q, (int32_t)set.knob[set.patch][q] + e * step, 1);
         } else if (k >= EN_K1 && k <= EN_K3 && (btn >> B_FX & 1u)) {   /* FX held: the fuzz's EQ, low, mid, high */
             int32_t step = (e > 2 || e < -2) ? 10 : 5;
@@ -1427,6 +1499,7 @@ static void input(void)
                   | (set.chords ? 1u << B_ARP : 0u) | (set.fuzz_off ? 0u : 1u << B_FX)
                   | (eng_filling() ? 1u << B_ENV : 0u) | (set.beat_var != 1u ? 1u << B_LFO : 0u)
                   | (set.bass ? 1u << B_GLO : 0u)
+                  | (ui.fx_page ? 1u << B_EDIT : 0u) | (set.split ? 1u << B_SEL : 0u)
                   | (eng_beat_on() && (eng_step() & 3u) == 0u ? 1u << B_SEQ : 0u)   /* SEQ blinks the beats */
                   | (btn & ~(1u << B_PLAY)), keys);
 }
@@ -1960,6 +2033,12 @@ int app_expect(const char *what, int *got)
         *got = set.bass;
     else if (!strcmp(what, "battery"))   /* the percentage shown; -1 none, -2 USB */
         *got = batt_shown;
+    else if (!strcmp(what, "fx_page"))
+        *got = ui.fx_page;
+    else if (!strcmp(what, "split"))
+        *got = set.split;
+    else if (!strcmp(what, "split_key"))
+        *got = set.split_key;
     else if (!strcmp(what, "voice_cap"))
         *got = eng_voice_cap(0);
     else if (!strcmp(what, "two_cores"))
