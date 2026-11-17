@@ -1,0 +1,91 @@
+# Album: EDIT turns K1 to K4's page, SEL splits the keyboard (album_host split.txt OUTDIR)
+wait 9000
+# EDIT tapped: K1 to K4 are the effects (EDIT lit); K1 is JET now, GLIDE left alone
+expect fx_page 0
+listen
+tap EDIT
+wait 60
+said EFFECTS JET ECHO DRIVE CHORUS
+expect fx_page 1
+spin K1 2
+wait 60
+expect knob8 10
+expect knob0 140
+# EDIT held and a knob turned: the page stays as it is
+press EDIT
+spin K2 1
+wait 60
+release EDIT
+wait 60
+expect fx_page 1
+expect knob9 5
+# EDIT tapped again: the sound's four
+listen
+tap EDIT
+wait 60
+said SOUND GLIDE SWELL TONE BLUR
+expect fx_page 0
+spin K1 1
+wait 60
+expect knob0 145
+expect knob8 10
+# NOTES (ARP twice from CHORDS), so each key is one note out over USB
+tap ARP
+tap ARP
+wait 60
+expect chords 0
+# SEL: the keys from F4 up an octave higher; C4 stays
+listen
+tap SEL
+wait 60
+said SPLIT AT F4 UP 1 OCT
+expect split 1
+out
+key w7 down 100
+wait 30
+expect_out USB 90 4D 64
+key w7 up
+key w4 down 100
+wait 30
+expect_out USB 90 3C 64
+key w4 up
+wait 300
+# SEL held and a key: the split from C4 up
+listen
+press SEL
+key w4 down 100
+wait 30
+key w4 up
+release SEL
+wait 60
+said SPLIT AT C4 UP 1 OCT
+expect split_key 7
+expect split 1
+out
+key w4 down 100
+wait 30
+expect_out USB 90 48 64
+key w4 up
+wait 300
+# SEL again: two octaves up, then off
+listen
+tap SEL
+wait 60
+said SPLIT AT C4 UP 2 OCT
+out
+key w4 down 100
+wait 30
+expect_out USB 90 54 64
+key w4 up
+wait 300
+listen
+tap SEL
+wait 60
+said SPLIT OFF
+expect split 0
+out
+key w4 down 100
+wait 30
+expect_out USB 90 3C 64
+key w4 up
+wait 300

@@ -40,22 +40,29 @@ shows at the top for a moment when you choose it, and a knob's value shows at th
 | --- | --- |
 | Keys | Play: a note each, or a chord each in chord mode. Velocity counts. |
 | PRESET | The next or previous patch (and its photo) |
-| K1 to K4 | Glide, Swell, Tone, Blur |
+| K1 to K4 | Glide, Swell, Tone, Blur; or, after a tap of EDIT, the four effects |
 | ARP | How the keys play, one press each: CHORDS (from the start), ACCORDION, NOTES (section 5). Held, then a key: that key's note becomes the key |
 | SELECT | Chord mode's key, a semitone a click |
 | ALGORITHM | Fuzz, the fifth knob (section 3) |
 | FX | The fuzz in or out (lit while in), its setting kept. Held: K1, K2 and K3 are the fuzz's low, mid and high |
+| SEL | The split: the keys from F4 up an octave higher, then two octaves, then off (lit while on). Held, then a key: the split starts at that key |
 | ENV | FILL: a drum fill to the end of the bar; held, it keeps going (lit while it plays) |
 | LFO | The beat: SPARSE, AS WRITTEN, BUSY (lit unless as written) |
 | GLO | The auto bass on or off (lit while on) |
 | SEQ | The patch's beat on or off (blinks with it). Held: ALGORITHM sets the tempo, SELECT the beat's level |
-| EDIT | Shows the MIDI channel. Held: K1 to K4 are the four effects, JET, ECHO, DRIVE and CHORUS (section 3), SELECT sets the MIDI channel (section 8), and the top of the screen shows how hard the FM-1 is working (section 9), and OCT+ and OCT- set the most voices (section 9) |
+| EDIT | A tap: K1 to K4 turn to the four effects, JET, ECHO, DRIVE and CHORUS (section 3), and EDIT lights; another tap, back to Glide, Swell, Tone and Blur. Held: K1 to K4 are the effects whichever way it is, SELECT sets the MIDI channel (section 8), OCT+ and OCT- set the most voices, and the top of the screen shows how hard the FM-1 is working (section 9) |
 | PLAY | The chord loop: stop it, or start it again from its first bar (lit green while it plays). While recording: close the loop (section 5) |
 | OCT- / OCT+ | The octave, two down to two up |
 | HOME | This patch's knobs, its effects and its tempo back where it starts |
 | SAVE | Keep everything (lit when something changed): section 7 |
 | REC | Record a chord loop (section 5) |
 | MASTER | Volume |
+
+**The split.** Tap SEL to play low with the left hand and high with the right: the keys from F4 up sound an octave
+higher, and SEL lights. Tap again for two octaves, and again for off. To move the split, hold SEL and press the key
+the upper side should start on: the screen says SPLIT AT and the note. It works in every mode, so the left hand can
+hold a low chord while the right plays a high line. With OCT- as well, the left side goes really low. SAVE keeps the
+split. A note keeps its pitch until you let go of it, even if you change the split while holding it.
 
 **The battery.** The top right corner shows the battery's charge: an outline filled to it, and the percentage. It
 turns red at 15 % and under. At 15 % the screen says BATTERY LOW, and at 5 % BATTERY 5%, CHARGE IT. With two cores
@@ -82,8 +89,9 @@ Every patch has the same five knobs: K1 to K4, and ALGORITHM for the fuzz. Each 
 
 The warm light in each photo (a fire, the sun, a lamp) flickers with the sound's level.
 
-**The four effects.** Hold EDIT and turn K1 to K4. They go on the whole sound, and each patch keeps its own; most
-start off.
+**The four effects.** Tap EDIT and turn K1 to K4: EDIT lights while they are the effects, and another tap turns
+them back to Glide, Swell, Tone and Blur. Holding EDIT and turning works too, and leaves the knobs as they were when
+you let go. They go on the whole sound, and each patch keeps its own; most start off.
 
 | Knob | The sound | The photo |
 | --- | --- | --- |
